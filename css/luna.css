@@ -1,0 +1,363 @@
+/* ============ BOWMAN.EXE — Windows XP "Luna" theme ============ */
+
+:root {
+  --face: #ece9d8;
+  --face-light: #f6f4ec;
+  --hilite: #ffffff;
+  --shadow: #aca899;
+  --dark: #716f64;
+  --frame: #0855dd;
+  --frame-inactive: #7a96df;
+  --title-a: #0058ee;
+  --title-b: #3a93ff;
+  --desktop: #3a6ea5;
+  --sel: #316ac5;
+  --sel-text: #ffffff;
+  --btn-border: #003c74;
+  --field-border: #7f9db9;
+  --font: "Tahoma", "Segoe UI", Verdana, sans-serif;
+  --title-font: "Trebuchet MS", "Tahoma", sans-serif;
+  --mono: "Lucida Console", "Courier New", monospace;
+  /* soft XP equivalents of the old bevels (other sheets reference these) */
+  --bevel-out: inset 0 1px 0 #fff, inset 0 0 0 1px #f3f1e4, 0 1px 2px rgba(0,0,0,.15);
+  --bevel-in: inset 1px 1px 3px rgba(0,0,0,.25), inset 0 0 0 1px #d8d5c4;
+  --bevel-field: inset 0 0 0 1px var(--field-border), inset 1px 1px 2px rgba(0,0,0,.08);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: 13px;
+  background: #000;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* ---------- buttons (Luna: white gradient, blue border, orange hover) ---------- */
+.btn {
+  font-family: var(--font);
+  font-size: 13px;
+  background: linear-gradient(180deg, #ffffff 0%, #f1efe2 60%, #e1ddc9 100%);
+  color: #000;
+  border: 1px solid var(--btn-border);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 #fff;
+  padding: 5px 14px;
+  min-height: 28px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { box-shadow: inset 0 0 0 2px #f9c87c, inset 0 -2px 0 1px #f59d35; }
+.btn:active, .btn.pressed {
+  background: linear-gradient(180deg, #d2cdb8 0%, #e8e4d4 100%);
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,.2);
+}
+.btn:focus-visible { outline: 1px dotted #000; outline-offset: -4px; }
+.btn[disabled] { color: var(--shadow); cursor: default; box-shadow: none; }
+
+/* ---------- window chrome ---------- */
+.win {
+  position: absolute;
+  background: var(--face);
+  border: 3px solid var(--frame);
+  border-top: 0;
+  border-radius: 8px 8px 4px 4px;
+  box-shadow: 2px 4px 12px rgba(0, 20, 80, .45);
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  min-height: 120px;
+  overflow: hidden;
+}
+.win:not(.focused) { border-color: var(--frame-inactive); box-shadow: 2px 3px 8px rgba(0, 20, 80, .25); }
+.win.minimized { display: none; }
+
+.win-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  margin: 0 -1px;
+  padding: 2px 4px 2px 8px;
+  background: linear-gradient(180deg,
+    #2a80ff 0%, #1262e8 8%, #0855dd 40%, #0050e0 80%, #073dad 96%, #0036bd 100%);
+  color: #fff;
+  font-family: var(--title-font);
+  font-weight: bold;
+  font-size: 13px;
+  text-shadow: 1px 1px 1px rgba(0, 0, 60, .7);
+  cursor: move;
+  touch-action: none;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.win:not(.focused) .win-title {
+  background: linear-gradient(180deg, #9db9eb 0%, #8504c4 0%, #89a8e4 0%, #7a96df 45%, #6580c2 100%);
+  color: #e4ecf9;
+}
+.win-title .t-icon { font-size: 15px; line-height: 1; flex: 0 0 auto; }
+.win-title .t-text {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: .2px;
+}
+.win-title .t-btns { display: flex; gap: 2px; flex: 0 0 auto; }
+.win-title .t-btns .btn {
+  width: 25px; height: 23px; min-height: 23px;
+  padding: 0;
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: bold;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(180deg, #5e9bff 0%, #2868e8 45%, #1953d4 100%);
+  border: 1px solid #fff;
+  border-radius: 3px;
+  text-shadow: none;
+}
+.win-title .t-btns .btn:hover { box-shadow: inset 0 0 4px 1px #bcd4ff; }
+.win-title .t-btns .b-close {
+  background: linear-gradient(180deg, #f3a183 0%, #e35d4b 40%, #c13e1d 100%);
+}
+.win-title .t-btns .b-close:hover { box-shadow: inset 0 0 4px 1px #ffd2c4; }
+
+.win-body {
+  flex: 1 1 auto;
+  margin: 3px;
+  overflow: auto;
+  position: relative;
+  background: var(--face);
+}
+.win-body.sunken {
+  background: #fff;
+  border: 1px solid var(--field-border);
+  padding: 8px;
+  user-select: text;
+}
+
+.win-resize {
+  position: absolute;
+  right: 1px; bottom: 1px;
+  width: 18px; height: 18px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background:
+    radial-gradient(circle at 13px 13px, #9c9a8a 1.6px, transparent 2px),
+    radial-gradient(circle at 13px 7px, #9c9a8a 1.6px, transparent 2px),
+    radial-gradient(circle at 7px 13px, #9c9a8a 1.6px, transparent 2px);
+}
+
+/* ---------- menus (XP: white, thin border, blue hover) ---------- */
+.menu {
+  position: fixed;
+  z-index: 9000;
+  background: #fff;
+  border: 1px solid #aca899;
+  box-shadow: 3px 3px 6px rgba(0, 0, 0, .3);
+  padding: 3px;
+  min-width: 200px;
+}
+.menu .mi {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 18px 7px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.menu .mi .mi-ico { width: 20px; text-align: center; }
+.menu .mi:hover, .menu .mi.hot { background: var(--sel); color: var(--sel-text); }
+.menu .mi.disabled { color: var(--shadow); pointer-events: none; }
+.menu .msep { height: 1px; margin: 3px 6px; background: #d7d5c9; }
+
+.menu.start {
+  display: flex;
+  padding: 0;
+  border: 1px solid #0d3a9e;
+  border-radius: 6px 6px 0 0;
+  overflow: hidden;
+}
+.menu.start .side {
+  width: 30px;
+  background: linear-gradient(180deg, #1262e8 0%, #0855dd 50%, #0a47b8 100%);
+  color: #fff;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--title-font);
+  font-weight: bold;
+  font-style: italic;
+  font-size: 15px;
+  letter-spacing: 2px;
+  padding: 10px 2px;
+  display: flex;
+  align-items: center;
+  text-shadow: 1px 1px 2px rgba(0,0,40,.6);
+}
+.menu.start .items { flex: 1; background: #fff; padding: 3px; }
+
+/* ---------- taskbar (Luna blue + green start) ---------- */
+#taskbar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: 40px;
+  background: linear-gradient(180deg,
+    #2157d7 0%, #3e80f4 6%, #2a63e4 14%, #2157d7 50%, #1c4ec9 90%, #15389c 100%);
+  border-top: 1px solid #0831a0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 0;
+  z-index: 8000;
+}
+.start-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--title-font);
+  font-weight: bold;
+  font-style: italic;
+  font-size: 16px;
+  color: #fff;
+  text-shadow: 1px 1px 2px rgba(0, 30, 0, .7);
+  background: linear-gradient(180deg, #7ad771 0%, #3c9338 12%, #2f8c2c 55%, #1d5c1c 100%);
+  border: none;
+  border-radius: 0 12px 12px 0;
+  box-shadow: inset 0 1px 1px #b3eeac, 2px 0 4px rgba(0, 0, 0, .35);
+  padding: 4px 18px 6px 10px;
+  min-height: 32px;
+  cursor: pointer;
+}
+.start-btn:hover { filter: brightness(1.12); box-shadow: inset 0 1px 1px #c9f7c3, 2px 0 4px rgba(0,0,0,.35); }
+.start-btn:active { filter: brightness(.92); }
+.start-logo {
+  width: 18px; height: 18px;
+  background:
+    conic-gradient(from 0deg at 50% 50%, #f25022 0 25%, #7fba00 0 50%, #00a4ef 0 75%, #ffb900 0);
+  border-radius: 2px;
+  box-shadow: 0 0 3px rgba(255,255,255,.7);
+  transform: skewX(-6deg);
+}
+.task-sep { width: 1px; align-self: stretch; background: rgba(255,255,255,.25); margin: 4px 0; }
+#task-buttons {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#task-buttons::-webkit-scrollbar { display: none; }
+#task-buttons .btn {
+  max-width: 170px;
+  min-width: 60px;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  font-weight: normal;
+  color: #fff;
+  background: linear-gradient(180deg, #5e9bff 0%, #3c81f3 45%, #2868e8 100%);
+  border: 1px solid #1b50c0;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+  text-shadow: 0 1px 1px rgba(0,0,60,.5);
+}
+#task-buttons .btn:hover { filter: brightness(1.1); box-shadow: inset 0 1px 0 rgba(255,255,255,.5); }
+#task-buttons .btn.active {
+  background: linear-gradient(180deg, #1e52b7 0%, #2b62cf 100%);
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 40, .5);
+  font-weight: bold;
+}
+#tray {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(180deg, #1290e9 0%, #0b63cf 50%, #0a47b8 100%);
+  border-left: 1px solid #092e7d;
+  box-shadow: inset 1px 1px 2px rgba(0, 20, 80, .4);
+  border-radius: 0;
+  padding: 3px 10px;
+  min-height: 32px;
+  margin: -4px -6px -4px 0;
+  align-self: stretch;
+}
+.tray-btn { background: none; border: none; cursor: pointer; font-size: 15px; padding: 2px; }
+.tray-btn.off { filter: grayscale(1) opacity(.5); }
+#tray-clock { font-size: 12px; min-width: 52px; text-align: center; color: #fff; text-shadow: 0 1px 1px rgba(0,0,60,.6); }
+
+/* ---------- form bits ---------- */
+.field, input[type="text"], select, textarea {
+  font-family: var(--font);
+  font-size: 13px;
+  background: #fff;
+  border: 1px solid var(--field-border);
+  border-radius: 0;
+  padding: 6px 8px;
+  min-height: 30px;
+  user-select: text;
+}
+input[type="range"] { accent-color: var(--frame); }
+fieldset {
+  border: 1px solid #d0cdbd;
+  border-radius: 4px;
+  margin: 8px;
+  padding: 10px;
+}
+legend { padding: 0 4px; color: #0046d5; }
+
+.progress {
+  border: 1px solid #686868;
+  border-radius: 2px;
+  background: #fff;
+  height: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.progress > i {
+  position: absolute;
+  inset: 2px auto 2px 2px;
+  width: 0%;
+  background: repeating-linear-gradient(90deg,
+    #2ace35 0 7px, #51d958 7px 9px, transparent 9px 12px);
+  transition: width .2s;
+}
+
+/* ---------- toast ---------- */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  background: #ffffe1;
+  border: 1px solid #000;
+  border-radius: 3px;
+  box-shadow: 2px 2px 4px rgba(0,0,0,.35);
+  padding: 8px 14px;
+  z-index: 9500;
+  font-size: 12px;
+  max-width: 90vw;
+}
+
+/* ---------- scrollbars (WebKit) ---------- */
+::-webkit-scrollbar { width: 15px; height: 15px; }
+::-webkit-scrollbar-track { background: #f4f2e8; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #cbdbf7 0%, #b7cdf2 50%, #9cb7e6 100%);
+  border: 1px solid #8ca7d8;
+  border-radius: 7px;
+}
+::-webkit-scrollbar-button { display: none; }
+
+@media (max-width: 700px) {
+  html, body { font-size: 14px; }
+  .win-title { height: 36px; }
+  .win-title .t-btns .btn { width: 34px; height: 30px; min-height: 30px; }
+  #taskbar { height: 46px; }
+}
