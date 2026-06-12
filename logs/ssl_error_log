@@ -1,0 +1,8 @@
+[Thu Jun 11 15:13:12.857827 2026] [ssl:emerg] [pid 34712:tid 380] AH02565: Certificate and private key www.bowmanfox.xyz:443:0 from C:/Apache24/bin/bowmanfox.crt and C:/Apache24/bin/bowmanfox.key do not match
+[Thu Jun 11 15:19:56.494455 2026] [ssl:emerg] [pid 66996:tid 88] AH02565: Certificate and private key www.bowmanfox.xyz:443:0 from C:/Apache24/bin/bowmanfox.crt and C:/Apache24/bin/bowmanfox.key do not match
+[Thu Jun 11 15:20:34.750959 2026] [ssl:emerg] [pid 58924:tid 384] AH02565: Certificate and private key www.bowmanfox.xyz:443:0 from C:/Apache24/bin/bowmanfox.crt and C:/Apache24/bin/bowmanfox.key do not match
+[Thu Jun 11 15:21:28.201861 2026] [ssl:emerg] [pid 53740:tid 384] AH02565: Certificate and private key www.bowmanfox.xyz:443:0 from C:/Apache24/bin/bowmanfox.crt and C:/Apache24/bin/bowmanfox.key do not match
+[Thu Jun 11 15:21:40.875207 2026] [ssl:emerg] [pid 139884:tid 360] AH02565: Certificate and private key www.bowmanfox.xyz:443:0 from C:/Apache24/bin/bowmanfox.crt and C:/Apache24/bin/bowmanfox.key do not match
+[Thu Jun 11 15:21:49.927114 2026] [ssl:emerg] [pid 95404:tid 376] AH02565: Certificate and private key www.bowmanfox.xyz:443:0 from C:/Apache24/bin/bowmanfox.crt and C:/Apache24/bin/bowmanfox.key do not match
+[Thu Jun 11 15:22:24.128547 2026] [ssl:emerg] [pid 101796:tid 388] AH02565: Certificate and private key www.bowmanfox.xyz:443:0 from C:/Apache24/bin/bowmanfox.crt and C:/Apache24/bin/bowmanfox.key do not match
+[Thu Jun 11 15:23:29.512636 2026] [ssl:emerg] [pid 78604:tid 384] AH02565: Certificate and private key www.bowmanfox.xyz:443:0 from C:/Apache24/bin/bowmanfox.crt and C:/Apache24/bin/bowmanfox.key do not match
