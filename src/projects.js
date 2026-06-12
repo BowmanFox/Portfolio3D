@@ -29,7 +29,7 @@ export const PROJECTS = [
     icon: '🐺',
     name: 'WOLF HYENA',
     sub: 'Game-ready rigged character · 2026',
-    modelFBX: 'js/FORCOMMANDER17.fbx',
+    modelFBX: 'FORCOMMANDER17.fbx',
     blurb: 'A fully rigged, game-ready character avatar — Bowman.',
     specs: [
       'FBX 7.4 binary, single skinned mesh, real-time ready',
