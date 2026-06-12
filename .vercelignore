@@ -1,0 +1,6 @@
+# dev-only files — never deploy these
+serve.py
+.devcert.pem
+.devkey.pem
+.claude/
+README.md
