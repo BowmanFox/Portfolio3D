@@ -103,6 +103,17 @@
 .chat-quick .btn { font-size: 11px; padding: 3px 8px; min-height: 24px; flex: 0 0 auto; }
 .chat-input-row { display: flex; gap: 4px; }
 .chat-input-row input { flex: 1; min-width: 0; }
+.chat-consent {
+  background: #ffffe1;
+  border: 1px solid #c9c45e;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  margin: 5px 0 0;
+}
+.chat-consent .consent-btns { display: flex; gap: 5px; margin-top: 5px; }
+.chat-consent .btn { font-size: 11px; padding: 3px 9px; min-height: 24px; }
+
 .chat-brain {
   display: flex;
   align-items: center;

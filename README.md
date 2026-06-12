@@ -5,7 +5,7 @@ BOWMAN MEGATRENDS, INC. — built as a single static page with no build step,
 no bundler, and no binary assets, designed to be embedded in a
 [carrd.co](https://carrd.co) iframe.
 
-**Spotty** — by default the rigged AWD avatar shipped in `js/AWD.fbx` — guides
+**Spotty** — by default the rigged AWD avatar shipped in `src/AWD.fbx` — guides
 visitors through your projects in a 3D showroom with real-time lighting and
 physics, explains their technical specs (and what they mean in plain English)
 in a chat terminal, dances on request, and can optionally think with a
@@ -16,7 +16,7 @@ in a chat terminal, dances on request, and can optionally think with a
 - **WebGPU renderer** (three.js `WebGPURenderer`) with automatic **WebGL2
   fallback** — runs on phones too. The HUD shows which backend you got.
 - **FBX character pipeline** — set a permanent character in
-  [js/config.js](js/config.js) (`characterFBX`), load one per-visit via
+  [src/config.js](src/config.js) (`characterFBX`), load one per-visit via
   `?character=URL`, or just drop a `.fbx` onto the viewer. Bone names are
   normalized and **mapped onto a canonical 19-joint armature, then
   retargeted** — both **Mixamo-style** (`mixamorig:LeftForeArm`, `arm_L.R`,
@@ -58,6 +58,16 @@ in a chat terminal, dances on request, and can optionally think with a
   in-memory fallback for storage-blocking embeds), right-click context menu
   (Refresh Desktop / Auto-Arrange Icons / Minimize All / Change Wallpaper),
   long-press menu on touch.
+- **Visitor memory (opt-in, local, encrypted)** — Spotty can remember
+  returning visitors: name (if offered), visit count, last topics, and the
+  tail of the previous conversation, primed into both brains so he greets
+  you like an old friend. Privacy by architecture: **everything stays in
+  the visitor's browser** — no server, no telemetry, no analytics, and no
+  browser fingerprinting (identity is a random local 256-bit secret).
+  Stored as AES-GCM-256 ciphertext keyed via HKDF; the visitor label is a
+  SHA-256 hash. ePrivacy/GDPR/CCPA-aligned: explicit opt-in before anything
+  is stored, right of access ("what do you remember about me?"), right to
+  erasure ("forget me", or Settings → Privacy → Forget everything).
 - **Keyboard shortcuts** — press `F1` in the app (highlights: `G` = dance,
   `Space` = present, `T` = toss, `←/→` = switch project).
 
@@ -65,7 +75,8 @@ in a chat terminal, dances on request, and can optionally think with a
 
 ```sh
 python serve.py
-# → http://localhost:8123  and  https://localhost:8443 (+ your LAN IP)
+# → http://localhost:8123  and  https://localhost (+ your LAN IP)
+#   (https uses port 443; if busy it falls back to :8443)
 ```
 
 One process serves both protocols; the HTTPS side (self-signed cert,
@@ -97,23 +108,23 @@ Tips:
   secure contexts, so on `http://192.168.x.x:8123` the LLM (and the WebGPU
   renderer path) is blocked — the chat shows an "LLM needs HTTPS — how?"
   button with fixes. Quickest: `serve.py` already listens on
-  `https://<your-ip>:8443` — open that and accept the self-signed cert once.
+  `https://<your-ip>` — open that and accept the self-signed cert once.
   Real deployments (GitHub Pages/Netlify/carrd embed) are HTTPS already, so
   visitors are never affected. The site itself still runs fine over plain
   HTTP via the WebGL2 fallback.
 
 ## Make it yours
 
-- **Config**: [js/config.js](js/config.js) — brand/app/guide names, preset
+- **Config**: [src/config.js](src/config.js) — brand/app/guide names, preset
   `characterFBX` URL, character height, local-LLM model id.
-- **Projects**: edit [js/projects.js](js/projects.js) — name, blurb,
+- **Projects**: edit [src/projects.js](src/projects.js) — name, blurb,
   `modelFBX` (your real .fbx), `specs`, `forEmployers`, `eli5`, `how`,
   keywords, and a small procedural fallback `buildModel()`.
-- **Poses & sequences**: [js/animator.js](js/animator.js) (`POSES`,
-  `SEQUENCES`), referenced from brain replies in [js/brain.js](js/brain.js).
-- **Bone aliases / morph patterns**: [js/retarget.js](js/retarget.js) and the
-  `MORPH_PATTERNS` table in [js/character.js](js/character.js).
-- **Wallpapers / theme**: [js/desktop.js](js/desktop.js) and
+- **Poses & sequences**: [src/animator.js](src/animator.js) (`POSES`,
+  `SEQUENCES`), referenced from brain replies in [src/brain.js](src/brain.js).
+- **Bone aliases / morph patterns**: [src/retarget.js](src/retarget.js) and the
+  `MORPH_PATTERNS` table in [src/character.js](src/character.js).
+- **Wallpapers / theme**: [src/desktop.js](src/desktop.js) and
   [css/win9x.css](css/win9x.css).
 
 ## Architecture
@@ -121,7 +132,7 @@ Tips:
 ```
 index.html      shell, import map (three.js WebGPU build via CDN)
 css/            win9x.css (Win95 theme) · BIOS/CRT effects · desktop apps
-js/
+src/
   config.js     site config: names, preset FBX, LLM model
   main.js       orchestrator: boots BIOS → desktop → windows
   boot.js       POST sequence, Energy Star fade-in, CRT on/off
