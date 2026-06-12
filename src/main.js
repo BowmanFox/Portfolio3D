@@ -68,7 +68,9 @@ function openViewer() {
       : 'PROCEDURAL (19/19 bones)';
     const ls = showroom.project?.liveStats;
     const model = ls ? `\nMODEL: ${ls.triangles.toLocaleString('en-US')} tris · ${ls.bones} bones · ${ls.morphs} morphs` : '';
-    hud.textContent = `RENDERER: ${showroom.backendName}\nFPS: ${fps}\nRIG: ${rig}${model}`;
+    const P = showroom._perf;
+    const perf = P?.level ? `\nPERF: auto ${[100, 80, 62, 50][P.level]}% res${P.level >= 2 ? ' · shadows off' : ''}` : '';
+    hud.textContent = `RENDERER: ${showroom.backendName}\nFPS: ${fps}\nRIG: ${rig}${model}${perf}`;
   };
 
   showroom.init().then(() => {

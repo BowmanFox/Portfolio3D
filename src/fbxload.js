@@ -121,6 +121,37 @@ export async function loadFBXSafe(source, { onProgress = null, onTexturesSettled
   return obj;
 }
 
+/**
+ * Drop morph targets we never drive. Avatar exports often ship 100+ visemes
+ * and expression keys; every one is a full per-vertex delta stream uploaded
+ * to (and blended on) the GPU each frame — a massive hidden cost on
+ * high-poly meshes. Pass regexes of names to keep ([] strips everything,
+ * which is right for static showcase models).
+ */
+export function pruneMorphs(root, keepPatterns = []) {
+  let kept = 0, dropped = 0;
+  root.traverse((m) => {
+    if (!m.isMesh || !m.morphTargetDictionary) return;
+    const geo = m.geometry;
+    const entries = Object.entries(m.morphTargetDictionary);   // name → index
+    const keep = entries.filter(([n]) => keepPatterns.some((r) => r.test(n.trim())));
+    if (keep.length === entries.length) { kept += keep.length; return; }
+    const attrs = {};
+    for (const key of Object.keys(geo.morphAttributes || {})) {
+      const list = keep.map(([, i]) => geo.morphAttributes[key][i]).filter(Boolean);
+      if (list.length) attrs[key] = list;
+    }
+    geo.morphAttributes = attrs;
+    const dict = {};
+    keep.forEach(([n], i) => { dict[n] = i; });
+    m.morphTargetDictionary = dict;
+    m.morphTargetInfluences = new Array(keep.length).fill(0);
+    kept += keep.length;
+    dropped += entries.length - keep.length;
+  });
+  return { kept, dropped };
+}
+
 /** Geometry/rig statistics — the "tech sheet" the brains read out. */
 export function computeModelStats(obj) {
   let tris = 0, verts = 0, meshes = 0, bones = 0, morphs = 0;

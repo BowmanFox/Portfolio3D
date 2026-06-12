@@ -7,7 +7,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Character } from './character.js';
 import { PhysicsWorld, Bouncer } from './physics.js';
 import { PROJECTS } from './projects.js';
-import { loadFBXSafe, computeModelStats } from './fbxload.js';
+import { loadFBXSafe, computeModelStats, pruneMorphs } from './fbxload.js';
 import { sfx } from './audio.js';
 import { store } from './store.js';
 
@@ -51,7 +51,9 @@ export class Showroom {
     }
     this.renderer = renderer;
     this.backendName = renderer.backend?.isWebGPUBackend ? 'WEBGPU' : 'WEBGL2';
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, this.low ? 1.25 : 2));
+    this._basePixelRatio = Math.min(devicePixelRatio || 1, this.low ? 1.25 : 2);
+    this._perf = { level: 0, cool: 0 };
+    renderer.setPixelRatio(this._basePixelRatio);
     renderer.shadowMap.enabled = !this.low;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.container.appendChild(renderer.domElement);
@@ -96,6 +98,7 @@ export class Showroom {
     // ---- lighting rig ---------------------------------------------------
     scene.add(new THREE.HemisphereLight(0xccd5e8, 0x445544, 1.5));
     const key = new THREE.DirectionalLight(0xfff6e8, 3.4);
+    this.keyLight = key;
     key.position.set(3, 5, 3);
     if (!this.low) {
       key.castShadow = true;
@@ -192,7 +195,8 @@ export class Showroom {
     if (this._fbxCache.has(proj.id)) return this._fbxCache.get(proj.id);
     try {
       const obj = await loadFBXSafe(proj.modelFBX);
-      const stats = computeModelStats(obj);
+      const stats = computeModelStats(obj);     // count morphs BEFORE pruning
+      pruneMorphs(obj, []);                     // showcase pieces are static
       // fit into a ~1.15 m display volume, centered on the group origin
       const bbox = new THREE.Box3().setFromObject(obj);
       const size = bbox.getSize(new THREE.Vector3());
@@ -302,9 +306,32 @@ export class Showroom {
 
     this._fpsAcc += dt; this._fpsN++;
     if (this._fpsAcc >= 0.5) {
-      this.onFps?.(Math.round(this._fpsN / this._fpsAcc));
+      const fps = Math.round(this._fpsN / this._fpsAcc);
+      this._govern(fps);
+      this.onFps?.(fps);
       this._fpsAcc = 0; this._fpsN = 0;
     }
+  }
+
+  /**
+   * Adaptive performance governor: heavy models tank the frame rate, so step
+   * the render resolution down (and eventually shadows off) until it holds,
+   * then climb back when there's headroom. Hysteresis prevents flip-flopping.
+   */
+  _govern(fps) {
+    const P = this._perf;
+    if (!P || P.cool-- > 0) return;
+    if (fps < 28 && P.level < 3) { P.level++; P.cool = 4; this._applyPerf(); }
+    else if (fps > 56 && P.level > 0) { P.level--; P.cool = 10; this._applyPerf(); }
+  }
+
+  _applyPerf() {
+    const P = this._perf;
+    const scale = [1, 0.8, 0.62, 0.5][P.level];
+    this.renderer.setPixelRatio(Math.max(0.5, this._basePixelRatio * scale));
+    if (this.keyLight) this.keyLight.castShadow = !this.low && P.level < 2;
+    const w = this.container.clientWidth, h = this.container.clientHeight;
+    if (w && h) this.renderer.setSize(w, h, false);   // rebuild the drawing buffer
   }
 
   /**
