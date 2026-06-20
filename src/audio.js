@@ -169,6 +169,6 @@ export function setVolume(v) {{
 }}
 """
 
-out = "/mnt/data/sadness-piano-final-module.js"
+out = "audio.js"
 Path(out).write_text(module_text)
 print(out)
