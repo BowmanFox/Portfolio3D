@@ -614,7 +614,7 @@ async function start() {
             (proj ? ` Last time we talked about ${proj.name} — want to pick up where we left off, or see something new?`
                   : ' What shall we look at today?');
     } else {
-      msg = `Welcome to ${CONFIG.appName}! *boot chime* I am ${CONFIG.guideName}. Browse my creator's projects with ◀ ▶, toss the exhibits around, ask me how they work — or tell me to dance!`;
+      msg = `Welcome to ${CONFIG.appName}! *Wags* I am ${CONFIG.guideName}. Browse my creator's projects with ◀ ▶, toss the exhibits around, ask me how they work — or tell me to dance!`;
     }
     chatPrint('bot', msg);
     showroom.character.talk(msg, back ? 'excited' : 'wave');
