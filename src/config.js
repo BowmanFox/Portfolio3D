@@ -17,5 +17,5 @@ export const CONFIG = {
   characterHeight: 1.55,          // metres the rig is normalized to
 
   // Local LLM (WebLLM model id) used when the visitor opts in.
-  llmModel: 'gemma-4-E4B-it-qat-mobile-ct ',
+  llmModel: 'gemma-2b',
 };
