@@ -3,7 +3,7 @@
 export const CONFIG = {
   brandName: 'BOWMAN Megatrends',
   appName: 'BOWMAN.EXE',
-  guideName: 'Spotty',
+  guideName: 'Bowman',
 
   // Preset guide character: URL to an .fbx rig. Leave '' to use the built-in
   // procedural robot. Mixamo-style and MMD-style (Japanese) bone names are

@@ -25,17 +25,17 @@ function cyl(rt, rb, h, m, seg = 14) { return new THREE.Mesh(new THREE.CylinderG
 
 export const PROJECTS = [
   {
-    id: 'Bowman Wolf Hyena',
+    id: 'AWD',
     icon: '🐺',
-    name: 'WOLF HYENA',
+    name: 'AFRICAN WILD DOG',
     sub: 'Game-ready rigged character · 2026',
-    modelFBX: 'src/FORCOMMANDER17.fbx',
-    blurb: 'A fully rigged, game-ready character avatar — Bowman.',
+    modelFBX: 'src/AWD.fbx',
+    blurb: 'A fully rigged, game-ready character avatar — AWD.',
     specs: [
       'FBX 7.4 binary, single skinned mesh, real-time ready',
       '75-bone armature: full finger articulation, ears, tail, eye bones',
        '64,000 Vertices: In modern game limits',
-      'Facial blendshapes ("Facial tracking too, ARKIT") for lip-sync and expression',
+      'Next gen avatar, planned to encompass all near-future bases of Bowman',
       'Humanoid-standard naming — retargets to Unity/Unreal/VRChat rigs',
       'Authored end-to-end: sculpt → retopo → UV → texture → skin weights',
     ],
@@ -47,7 +47,7 @@ export const PROJECTS = [
     ],
     eli5: 'Think of it as a digital puppet. Inside the visible "skin" there is a skeleton of 75 invisible joints; pulling a joint moves the surface naturally, like tendons. The face has pre-sculpted shapes (mouth open, eyes shut) that blend smoothly — that is how it talks and blinks. Making one well means a game studio can animate it without fixing anything. 64,000 vertices are made to accomplish this',
     how: 'The mesh is bound to the skeleton with per-vertex weights, so each triangle follows a blend of nearby bones. Facial motion uses blendshapes — stored offsets of the same vertices — mixed at runtime. Because bones use standard humanoid names, any engine can map its animations onto it automatically; that is exactly what this site does to make it walk, talk and dance.',
-    keywords: ['wolf', 'hyena', 'avatar', 'character', 'rig', 'wade', 'model', 'skinned', 'puppet', 'guide'],
+    keywords: ['African', 'WIld', 'dog'm 'avatar', 'character', 'rig', 'canine', 'model', 'skinned', 'modular', 'VRChat'],
     buildModel() {
       // simple mannequin placeholder while the real FBX streams in
       const g = new THREE.Group();
