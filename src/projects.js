@@ -113,7 +113,7 @@ export const PROJECTS = [
   },
   {
     id: 'KS-23',
-    icon: ▄︻═════',
+    icon: '▄︻═════',
     name: 'KS-23',
     sub: 'KS-23 - 2024',
     modelFBX: 'src/ks-23.fbx',
