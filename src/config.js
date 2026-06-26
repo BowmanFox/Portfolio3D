@@ -13,7 +13,7 @@ export const CONFIG = {
   // and drag-and-drop of .fbx files onto the viewer always works.
   // NOTE: must be a URL the browser can fetch (relative to index.html or
   // https://…), not an OS path like H:\… — the file below ships in src/.
-  characterFBX: 'src/AWD.fbx',
+  characterFBX: 'src/FORCOMMANDER17 - Copy.fbx',
   characterHeight: 1.55,          // metres the rig is normalized to
 
   // Local LLM (WebLLM model id) used when the visitor opts in.
