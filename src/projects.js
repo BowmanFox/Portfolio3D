@@ -47,7 +47,7 @@ export const PROJECTS = [
     ],
     eli5: 'Think of it as a digital puppet. Inside the visible "skin" there is a skeleton of 75 invisible joints; pulling a joint moves the surface naturally, like tendons. The face has pre-sculpted shapes (mouth open, eyes shut) that blend smoothly — that is how it talks and blinks. Making one well means a game studio can animate it without fixing anything. 64,000 vertices are made to accomplish this',
     how: 'The mesh is bound to the skeleton with per-vertex weights, so each triangle follows a blend of nearby bones. Facial motion uses blendshapes — stored offsets of the same vertices — mixed at runtime. Because bones use standard humanoid names, any engine can map its animations onto it automatically; that is exactly what this site does to make it walk, talk and dance.',
-    keywords: ['African', 'WIld', 'dog'm 'avatar', 'character', 'rig', 'canine', 'model', 'skinned', 'modular', 'VRChat'],
+    keywords: ['African', 'Wild', 'dog', 'avatar', 'character', 'rig', 'canine', 'model', 'skinned', 'modular', 'VRChat'],
     buildModel() {
       // simple mannequin placeholder while the real FBX streams in
       const g = new THREE.Group();
