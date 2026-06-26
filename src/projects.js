@@ -72,7 +72,7 @@ export const PROJECTS = [
     forEmployers: [
       'Submachine gun: A weapon designed in the 80s prolific for its use in films after failing to meet expectations by poly on the East coast',
       'Extremely optimized - It will work in almost any game or device and not be a bother',
-      'Detailed - Engineered to have the upmost detail for older game engines or mods, if your engine doesn't support normal or bump maps, this is not a problem',
+      'Detailed - Engineered to have the upmost detail for older game engines or mods, if your engine doesn't support normal or bump maps... this is not a problem',
     ],
     eli5: 'A model based on the famous submachine gun coequliouis with Miami cops and robbers... Featuring a highly detailed stock, low-poly yet surprisingly intricate design, tmy model is perfect for any low poly game aiming for semi-reasonable amount of detail, without the need for normal maps.',
     specs: [
