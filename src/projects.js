@@ -130,7 +130,7 @@ export const PROJECTS = [
       'Meant to fit robloxs art blocky aesthetic',
       'No PBR textures',
     ],
-    how: 'I started with the stock, almost gave up, then worked on the barrel. By hour two, I got the barrel done,, the reciever, and was working on the pump. By hour 3, I was working on the finite detail like the grip, and stock again. And, I was done.',
+    how: 'I started with the stock, almost gave up, then worked on the barrel. By hour two, I got the barrel done, the reciever, and was working on the pump. By hour 3, I was working on the finite detail like the grip, and stock again. And, I was done.',
     keywords: ['KS-23', 'Shotgun', 'ROBLOX', 'Stylized'],
     buildModel() {
       const g = new THREE.Group();
