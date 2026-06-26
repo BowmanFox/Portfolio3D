@@ -70,7 +70,7 @@ export const PROJECTS = [
     modelFBX: 'src/mc10.fbx',          // ← drop a .fbx URL here to showcase a real model
     blurb: 'Miami Special.',
     forEmployers: [
-      'Submachine gun: A weapon designed in the 80s prolific for its use in films, after failing to meet expectations by poly on the East coast',
+      'Submachine gun: A weapon designed in the 80s prolific for its use in films after failing to meet expectations by poly on the East coast',
       'Extremely optimized - It will work in almost any game or device and not be a bother',
       'Detailed - Engineered to have the upmost detail for older game engines or mods, if your engine doesn't support normal or bump maps, this is not a problem',
     ],
