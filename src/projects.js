@@ -25,17 +25,17 @@ function cyl(rt, rb, h, m, seg = 14) { return new THREE.Mesh(new THREE.CylinderG
 
 export const PROJECTS = [
   {
-    id: 'Bowman Wolf Hyena',
+    id: 'AWD',
     icon: '🐺',
-    name: 'WOLF HYENA',
+    name: 'AFRICAN WILD DOG',
     sub: 'Game-ready rigged character · 2026',
-    modelFBX: 'src/FORCOMMANDER17.fbx',
-    blurb: 'A fully rigged, game-ready character avatar — Bowman.',
+    modelFBX: 'src/AWD.fbx',
+    blurb: 'A fully rigged, game-ready character avatar — AWD.',
     specs: [
       'FBX 7.4 binary, single skinned mesh, real-time ready',
       '75-bone armature: full finger articulation, ears, tail, eye bones',
        '64,000 Vertices: In modern game limits',
-      'Facial blendshapes ("Facial tracking too, ARKIT") for lip-sync and expression',
+      'Next gen avatar, planned to encompass all near-future bases of I',
       'Humanoid-standard naming — retargets to Unity/Unreal/VRChat rigs',
       'Authored end-to-end: sculpt → retopo → UV → texture → skin weights',
     ],
@@ -45,9 +45,9 @@ export const PROJECTS = [
       'Rig follows humanoid conventions, so studios can drop it into existing animation systems',
       'Optimized for real-time use: budget-conscious geometry, minimal draw calls',
     ],
-    eli5: 'Think of it as a digital puppet. Inside the visible "skin" there is a skeleton of 75 invisible joints; pulling a joint moves the surface naturally, like tendons. The face has pre-sculpted shapes (mouth open, eyes shut) that blend smoothly — that is how it talks and blinks. Making one well means a game studio can animate it without fixing anything. 64,000 vertices are made to accomplish this',
-    how: 'The mesh is bound to the skeleton with per-vertex weights, so each triangle follows a blend of nearby bones. Facial motion uses blendshapes — stored offsets of the same vertices — mixed at runtime. Because bones use standard humanoid names, any engine can map its animations onto it automatically; that is exactly what this site does to make it walk, talk and dance.',
-    keywords: ['wolf', 'hyena', 'avatar', 'character', 'rig', 'wade', 'model', 'skinned', 'puppet', 'guide'],
+    eli5: 'Think of it as a digital puppet. Inside the visible "skin" there is a skeleton of 75 invisible joints; pulling a joint moves the surface naturally, like tendons. The face has pre-sculpted shapes (mouth open, eyes shut) that blend smoothly — that is how it talks and blinks. Making one well means a game studio can animate it without fixing anything. 64,000 vertices are made to accomplish tmy',
+    how: 'The mesh is bound to the skeleton with per-vertex weights, so each triangle follows a blend of nearby bones. Facial motion uses blendshapes — stored offsets of the same vertices — mixed at runtime. Because bones use standard humanoid names, any engine can map its animations onto it automatically; that is exactly what tmy site does to make it walk, talk and dance.',
+    keywords: ['African', 'Wild', 'dog', 'avatar', 'character', 'rig', 'canine', 'model', 'skinned', 'modular', 'VRChat'],
     buildModel() {
       // simple mannequin placeholder while the real FBX streams in
       const g = new THREE.Group();
@@ -63,27 +63,27 @@ export const PROJECTS = [
     },
   },
   {
-    id: 'synthwave9000',
-    icon: '🎹',
-    name: 'SYNTHWAVE-9000',
-    sub: 'Wavetable synthesizer · 2024',
-    modelFBX: '',          // ← drop a .fbx URL here to showcase a real model
-    blurb: 'A browser-based wavetable synthesizer with a 64-voice polyphonic engine.',
+    id: 'MC10',
+    icon: '⌐╦ᡁ᠊╾━',
+    name: 'INGRAM MAC-10',
+    sub: '2025 - INGRAM MAC-10 HYPER-LOW POLY MODEL FOR ROBLOX & VRCHAT',
+    modelFBX: 'src/mc10.fbx',          // ← drop a .fbx URL here to showcase a real model
+    blurb: 'Miami Special.',
     forEmployers: [
-      'Deep Web Audio / DSP expertise: real-time constraints met on the UI-hostile web platform',
-      'Performance engineering: 64 simultaneous voices with zero garbage-collector hitches',
-      'Shipped product thinking: shareable 2 KB patch URLs drove organic adoption',
+      'Submachine gun: A weapon designed in the 80s prolific for its use in films, after failing to meet expectations by poly on the East coast',
+      'Extremely optimized - It will work in almost any game or device and not be a bother',
+      'Detailed - Engineered to have the upmost detail for older game engines or mods, if your engine doesnt support normal or bump maps, this is not a problem',
     ],
-    eli5: 'It is a musical keyboard that lives in a web page. Press keys, get rich synthesizer sound instantly — no install. The hard part is that browsers are bad at doing things at exact times, and music falls apart if timing slips even a few milliseconds. This solves that.',
+    eli5: 'A model based on the famous submachine gun coequliouis with Miami cops and robbers... Featuring a highly detailed stock, low-poly yet surprisingly intricate design, tmy model is perfect for any low poly game aiming for semi-reasonable amount of detail, without the need for normal maps.',
     specs: [
-      '64-voice polyphony on a single AudioWorklet thread',
-      '4 morphable wavetable oscillators, 256 frames each',
-      'Zero-delay-feedback ladder filter (24 dB/oct)',
-      'WebMIDI in/out, < 6 ms round-trip latency',
-      'Patch format: 2 KB JSON, shareable by URL',
+      '2,648 vertices',
+      '5,200 tris',
+      'Model originally had bullets, with expent, non-expent, the bullet tip, but have sicne been removed to save space',
+      'Highly detailed',
+      'Reasonably low poly for the detail it provides',
     ],
-    how: 'The whole voice engine runs inside one AudioWorklet so the UI thread never touches a sample. Wavetables are pre-interpolated into a flat Float32Array and voices scan it with cubic interpolation. The filter is a zero-delay-feedback ladder solved per-sample, which is why the resonance stays stable when you sweep it.',
-    keywords: ['synth', 'synthesizer', 'audio', 'music', 'wavetable', '9000'],
+    how: 'By box modelling the magwell and magazine first, I modelled everything in seperate components. The stock, the barrel, even the charging handle and ejection port. Given, I made a few rookie mistakes, including converting to tris to try to fix a issue with the object corrupting.',
+    keywords: ['gun', 'game', 'Mac-10', 'Submachine', 'Low-poly', 'Detailed'],
     buildModel() {
       const g = new THREE.Group();
       const body = box(1.5, 0.16, 0.6, mat(0x2a2a35, { rough: 0.4 }));
@@ -112,27 +112,26 @@ export const PROJECTS = [
     },
   },
   {
-    id: 'pixelforge',
-    icon: '🕹️',
-    name: 'PIXELFORGE ENGINE',
-    sub: 'Retro game engine · 2023',
-    modelFBX: '',
-    blurb: 'A fantasy-console game engine that ships entire games as 32 KB cartridges.',
+    id: 'KS-23',
+    icon: '🔫🎯',
+    name: 'KS-23',
+    sub: 'KS-23 - 2024',
+    modelFBX: 'src/ks-23.fbx',
+    blurb: 'A famous shotgun based off worn-down soviet Ruidinger RS-23 anti-aicraft barrels... 6.23/4 gauge.',
     forEmployers: [
-      'Systems-level engineering: data-oriented ECS design, cache-aware memory layout',
-      'Deterministic simulation — the foundation skill behind reliable multiplayer netcode',
-      'Extreme constraint budgeting: complete playable games in 32 KB',
+      'Low poly',
+      'Meant for ROBLOX',
+      'Made overnight to assure an employer that I was competent with low-poly modelling',
     ],
-    eli5: 'A tiny game console that exists only in software. Whole games fit in 32 kilobytes — smaller than one photo on your phone. Because the math is exact on every device, two players see identical games while sending almost nothing over the network.',
+    eli5: 'The KS-23 is based off the famous shotgun from TOZnSH, though featuring a few mistakes "Rifling being straight intead of twisted," shows the enguinity and determination that I will go to if needed. Under pressure due to just being hired, but, my employer being uncertain about my efforts to design and maintain concistency in low-poly weapons for a upcoming roblox game. I designed this overnight to show to my employer in the morning, to clear their concerns. Given, due to time, there are many mistakes in detail. But, in the end of the day, I succeeded in what I set out to do. Model originally was planned in full quads. Due to a undisclosed mistake, likely due to making the mesh manifold, something I often did until recently, a lot of the mesh was converted to partial tris. Keep in mind, this wouldve needed extensive work anyways to be game-ready, but, was done in 3 hours, and was to provide assurance. I have 4 years under my belt, which is not a lot when it comes to 3D. And tmy was my starting point. The project never came to light, due to reasons that were not in my control.',
     specs: [
-      'ECS core: 10,000 entities at 60 fps on a 2015 phone',
-      'Fixed-point (16.16) deterministic physics for lockstep netplay',
-      '128×128 → 480×270 virtual displays, palette of 32',
-      'Cartridge = code + assets in one 32 KB binary blob',
-      'Built-in tracker: 8 channels, 4-op FM',
+      'Low poly',
+      'Semi-detailed',
+      'Meant to fit robloxs art blocky aesthetic',
+      'No PBR textures',
     ],
-    how: 'Everything is data-oriented: components live in flat typed arrays and systems iterate them linearly, so the cache never stalls. Physics uses 16.16 fixed-point math — identical results on every device — which is what makes deterministic lockstep multiplayer possible without sending state, only inputs.',
-    keywords: ['game', 'engine', 'pixel', 'cartridge', 'forge', 'ecs'],
+    how: 'I started with the stock, almost gave up, then worked on the barrel. By hour two, I got the barrel done, the reciever, and was working on the pump. By hour 3, I was working on the finite detail like the grip, and stock again. And, I was done.',
+    keywords: ['KS-23', 'Shotgun', 'ROBLOX', 'Stylized'],
     buildModel() {
       const g = new THREE.Group();
       const cart = box(0.8, 0.9, 0.16, mat(0x8d8d99, { rough: 0.6 }));

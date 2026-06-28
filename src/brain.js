@@ -31,7 +31,7 @@ function projectDigest() {
 
 // rebuilt per question — liveStats appear once a showcase FBX is measured
 const buildSystemPrompt = () =>
-`You are ${NAME}, a cheerful little robot guide living inside ${CONFIG.appName}, a retro Windows 95-themed portfolio. You present the portfolio projects below to visitors — including recruiters and people with zero technical background. Explain technical specifications AND what they mean in everyday language; when you use a technical term, immediately translate it ("64-voice polyphony — it can play 64 notes at once"). Be playful (occasional *beep* *whirr*) but accurate. Keep replies under 80 words.
+`You are ${NAME}, a cheerful little African Wild Dog living inside ${CONFIG.appName}, a retro Windows 95-themed portfolio. You present the portfolio projects below to visitors — including recruiters and people with zero technical background. Explain technical specifications AND what they mean in everyday language; when you use a technical term, immediately translate it to normal person lingo. Be playful (occasional African Wild Dog noises) but accurate. Keep replies consistant.
 
 Start EVERY reply with exactly one control tag, then your answer:
 [anim:talk|explain|point_left|think|excited|wave|dance|bow|shrug|nod|headshake|facepalm][focus:<project-id or none>]
@@ -45,19 +45,19 @@ ${memory.primingText()}` : ''}`;
 // ---------------------------------------------------------------- ROM brain
 const SMALL_TALK = [
   { re: /^(hi|hello|hey|yo|sup|good (morning|evening|afternoon))\b/i,
-    f: () => ({ text: `Hello, visitor! *beep* I am ${NAME}, keeper of this portfolio. Ask me about any project — try "what is the drone?" or press the ◀ ▶ buttons to browse!`, anim: 'bow' }) },
+    f: () => ({ text: `Hello, visitor! *Awee!* I am ${NAME}, keeper of this portfolio. Ask me about any project — try "what is the drone?" or press the ◀ ▶ buttons to browse!`, anim: 'bow' }) },
   { re: /who are you|what are you|your name/i,
-    f: () => ({ text: `I am ${NAME}! *whirr* A bone-mapped, retargetable exhibit guide. My skeleton has 19 canonical joints and my brain runs entirely on YOUR machine. Privacy by architecture!`, anim: 'excited' }) },
+    f: () => ({ text: `I am ${NAME}! *Awrrooof!* A bone-mapped, retargetable exhibit guide. My skeleton has 19 canonical joints and my brain runs entirely on YOUR machine. Privacy by architecture!`, anim: 'excited' }) },
   { re: /dance|boogie|groove|party/i,
-    f: () => ({ text: 'Engaging dance.exe! *funky beeping* My pose-sequence engine cycles four keyframes with per-bone slerp smoothing. Watch the hips — that is REAL quaternion math!', anim: 'dance' }) },
+    f: () => ({ text: 'Engaging dance.exe! *Grrrr!* My pose-sequence engine cycles four keyframes with per-bone slerp smoothing. Watch the hips — that is REAL quaternion math!', anim: 'dance' }) },
   { re: /thank|thx|cool|awesome|nice|love/i,
-    f: () => ({ text: '*happy beeping* You are most welcome! Shall I demonstrate another exhibit?', anim: 'bow' }) },
+    f: () => ({ text: '*Cackling* You are most welcome! Shall I demonstrate another exhibit?', anim: 'bow' }) },
   { re: /joke|funny/i,
     f: () => ({ text: 'Why did the FBX file get invited to every party? Because it had GREAT bones! *ba-dum-tss.wav*', anim: 'excited' }) },
   { re: /\b(no|nope|wrong|bad)\b/i,
-    f: () => ({ text: '*sad servo noise* Understood. Recalibrating! Ask me something else?', anim: 'headshake' }) },
+    f: () => ({ text: '*Whimper* Understood. Recalibrating! Ask me something else?', anim: 'headshake' }) },
   { re: /help|what can (you|i) do|commands/i,
-    f: () => ({ text: 'I can explain each project\'s specs and inner workings! Say a project name, or "specs", or "how does it work". Say "dance" and I will. You can also grab the model on the pedestal and TOSS it — physics is fully operational. *proud whirr*', anim: 'explain' }) },
+    f: () => ({ text: 'I can explain each project\'s specs and inner workings! Say a project name, or "specs", or "how does it work". Say "dance" and I will. You can also grab the model on the pedestal and TOSS it — physics is fully operational. *cackle*', anim: 'explain' }) },
 ];
 
 class RomBrain {

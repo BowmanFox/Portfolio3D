@@ -68,7 +68,9 @@ function openViewer() {
       : 'PROCEDURAL (19/19 bones)';
     const ls = showroom.project?.liveStats;
     const model = ls ? `\nMODEL: ${ls.triangles.toLocaleString('en-US')} tris · ${ls.bones} bones · ${ls.morphs} morphs` : '';
-    hud.textContent = `RENDERER: ${showroom.backendName}\nFPS: ${fps}\nRIG: ${rig}${model}`;
+    const P = showroom._perf;
+    const perf = P?.level ? `\nPERF: auto ${[100, 80, 62, 50][P.level]}% res${P.level >= 2 ? ' · shadows off' : ''}` : '';
+    hud.textContent = `RENDERER: ${showroom.backendName}\nFPS: ${fps}\nRIG: ${rig}${model}${perf}`;
   };
 
   showroom.init().then(() => {
@@ -292,7 +294,7 @@ function openChat() {
     if (llmBlocked === 'insecure-context') { openSecureContextHelp(); return; }
     llmBtn.hidden = true;
     prog.hidden = false;
-    label.textContent = 'Downloading model (~400 MB, cached after first run)…';
+    label.textContent = 'Downloading model (~4 GB, cached after first run)…';
     try {
       await brain.installLLM((p, t) => {
         prog.firstElementChild.style.width = Math.round(p * 100) + '%';
@@ -612,7 +614,7 @@ async function start() {
             (proj ? ` Last time we talked about ${proj.name} — want to pick up where we left off, or see something new?`
                   : ' What shall we look at today?');
     } else {
-      msg = `Welcome to ${CONFIG.appName}! *boot chime* I am ${CONFIG.guideName}. Browse my creator's projects with ◀ ▶, toss the exhibits around, ask me how they work — or tell me to dance!`;
+      msg = `Welcome to ${CONFIG.appName}! *Wags* I am ${CONFIG.guideName}. Browse my creator's projects with ◀ ▶, toss the exhibits around, ask me how they work — or tell me to dance!`;
     }
     chatPrint('bot', msg);
     showroom.character.talk(msg, back ? 'excited' : 'wave');

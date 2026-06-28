@@ -5,7 +5,7 @@
 // bone-mapped (Mixamo or MMD naming), scaled, grounded and retargeted in
 // place of the robot — including facial blendshapes ("aa", "blink", smile).
 import * as THREE from 'three';
-import { loadFBXSafe } from './fbxload.js';
+import { loadFBXSafe, pruneMorphs } from './fbxload.js';
 import { buildBoneMap, bindRestPose, mapReport, relaxTPose, CANONICAL } from './retarget.js';
 import { Animator } from './animator.js';
 import { SpringChain } from './physics.js';
@@ -272,8 +272,27 @@ export class Character {
 
   // ------------------------------------------------------------ FBX import
   async loadFBX(source, { onProgress = null, onTexturesSettled = null } = {}) {
+    // a 40 MB FBX parse blocks the main thread for seconds — never stack them
+    if (this._loading) throw new Error('an import is already in progress');
+    this._loading = true;
+    try {
+      return await this._loadFBXInner(source, { onProgress, onTexturesSettled });
+    } finally {
+      this._loading = false;
+    }
+  }
+
+  async _loadFBXInner(source, { onProgress, onTexturesSettled }) {
     const obj = await loadFBXSafe(source, { onProgress, onTexturesSettled });
     this.lastSource = source;          // kept so dropped textures can re-apply
+
+    // shed unused blendshapes right away — viseme-heavy exports carry 100+
+    // morph targets, each a full per-vertex stream the GPU would blend every
+    // frame; we only ever drive the expression channels below
+    const morphPrune = pruneMorphs(obj, Object.values(MORPH_PATTERNS).flat());
+    if (morphPrune.dropped) {
+      console.info(`pruned ${morphPrune.dropped} unused morph targets (kept ${morphPrune.kept})`);
+    }
 
     // normalize height, feet on the floor, facing +Z
     const bbox = new THREE.Box3().setFromObject(obj);
@@ -375,6 +394,7 @@ export class Character {
     report.morphs = this.morphs
       ? Object.entries(this.morphs).filter(([, v]) => v.length).map(([k]) => k)
       : [];
+    report.morphsDropped = morphPrune.dropped;
     return report;
   }
 
