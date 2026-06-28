@@ -2,8 +2,8 @@
 // Everything a portfolio owner usually wants to tweak lives here.
 export const CONFIG = {
   brandName: 'BOWMAN Megatrends',
-  appName: 'BOWMAN.EXE',
-  guideName: 'Spotty',
+  appName: 'BOWMANPORTFOLIO.EXE',
+  guideName: 'Bowman',
 
   // Preset guide character: URL to an .fbx rig. Leave '' to use the built-in
   // procedural robot. Mixamo-style and MMD-style (Japanese) bone names are
@@ -13,9 +13,9 @@ export const CONFIG = {
   // and drag-and-drop of .fbx files onto the viewer always works.
   // NOTE: must be a URL the browser can fetch (relative to index.html or
   // https://…), not an OS path like H:\… — the file below ships in src/.
-  characterFBX: 'src/AWD.fbx',
+  characterFBX: 'src/FORCOMMANDER17.fbx',
   characterHeight: 1.55,          // metres the rig is normalized to
 
   // Local LLM (WebLLM model id) used when the visitor opts in.
-  llmModel: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
+  llmModel: 'Phi-3.5-vision-instruct-q4f32_1-MLC',
 };
