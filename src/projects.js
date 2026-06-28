@@ -115,7 +115,7 @@ export const PROJECTS = [
     id: 'KS-23',
     icon: '🔫🎯',
     name: 'KS-23',
-    sub: 'KS-23 - 2024',
+    sub: 'KS-23 Shotgun - 2024',
     modelFBX: 'src/ks-23.fbx',
     blurb: 'A famous shotgun based off worn-down soviet Ruidinger RS-23 anti-aicraft barrels... 6.23/4 gauge.',
     forEmployers: [
@@ -131,7 +131,7 @@ export const PROJECTS = [
       'No PBR textures',
     ],
     how: 'I started with the stock, almost gave up, then worked on the barrel. By hour two, I got the barrel done, the reciever, and was working on the pump. By hour 3, I was working on the finite detail like the grip, and stock again. And, I was done.',
-    keywords: ['KS-23', 'Shotgun', 'ROBLOX', 'Stylized'],
+    keywords: ['KS-23', 'Shotgun', 'Anti-aircraft Barrel', 'ROBLOX', 'Stylized'],
     buildModel() {
       const g = new THREE.Group();
       const cart = box(0.8, 0.9, 0.16, mat(0x8d8d99, { rough: 0.6 }));
