@@ -50,8 +50,10 @@ in a chat terminal, dances on request, and can optionally think with a
   and steer the showroom. A rule-based **ROM brain** answers instantly
   everywhere else.
 - **All-synthesized audio** — lo-fi UI sfx, Animal-Crossing-style babble with
-  question intonation, and a generative 84 BPM lo-fi beat (swung drums, jazz
-  chords, vinyl crackle). The media player can also stream any audio URL.
+  question intonation, and a soundtrack: "Ode to Sadness" (src/ode-to-sadness.mid)
+  parsed and performed live on a synthesized felt piano, looped with evolving
+  variation passes over vinyl crackle. The media player can also stream any
+  audio URL.
 - **Win95 desktop shell** — BIOS boot with Energy Star logo + CRT scanline
   flicker, chunky beveled chrome, navy title bars, gray taskbar,
   draggable icons & windows with **persisted positions** (localStorage with

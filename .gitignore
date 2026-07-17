@@ -1,0 +1,4 @@
+# local dev artifacts — never commit
+.devcert.pem
+.devkey.pem
+__pycache__/
