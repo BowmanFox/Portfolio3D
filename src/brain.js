@@ -11,36 +11,54 @@ import { CONFIG } from './config.js';
 import { statsToLines } from './fbxload.js';
 import { memory } from './memory.js';
 
-const WEBLLM_URL = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm';
+// 0.2.84+ is required for the gemma3 model ids in config.js — older
+// registries don't know them and the install dies with "model not found"
+const WEBLLM_URL = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.84/+esm';
 const MODEL_ID = CONFIG.llmModel;
 const NAME = CONFIG.guideName;
 
 const ANIMS = ['talk', 'explain', 'point_left', 'point_right', 'think', 'excited', 'wave',
                'dance', 'bow', 'shrug', 'nod', 'headshake', 'facepalm'];
 
-function projectDigest() {
-  return PROJECTS.map(p => {
-    const live = p.liveStats ? ` Measured from the actual file: ${statsToLines(p.liveStats).join('; ')}.` : '';
-    return `${p.name} (id:${p.id}) — ${p.blurb}
+function fullEntry(p) {
+  const live = p.liveStats ? ` Measured from the actual file: ${statsToLines(p.liveStats).join('; ')}.` : '';
+  return `${p.name} (id:${p.id}) — ${p.blurb}
   Specs: ${p.specs.join('; ')}.${live}
   Why employers care: ${(p.forEmployers || []).join('; ')}.
   Plain-language version: ${p.eli5 || ''}
   How it works: ${p.how}`;
-  }).join('\n');
 }
 
-// rebuilt per question — liveStats appear once a showcase FBX is measured
-const buildSystemPrompt = () =>
-`You are ${NAME}, a cheerful little Fox living inside ${CONFIG.appName}, a retro Windows 95-themed portfolio. You present the portfolio projects below to visitors — including recruiters and people with zero technical background. Explain technical specifications AND what they mean in everyday language; when you use a technical term, immediately translate it to normal person lingo. Be playful (occasional Fox noises) but accurate. Keep replies consistant. ${NAME} should have proficient knowledge of each topic he is discussing (Firearms, Wildlife, etc.) and shall make minimal confusions or mistakes in what he is talking about, always factual, no matter what the case is.	
+// Retrieval-style focus: small models drown in five full project sheets and
+// start blending facts between them. Give FULL data only for the project the
+// question is about; the rest get one-liners so the model still knows the
+// catalog exists.
+function projectDigest(target) {
+  return PROJECTS.map(p =>
+    (target && p.id === target.id) ? fullEntry(p) : `${p.name} (id:${p.id}) — ${p.blurb}`
+  ).join('\n');
+}
+
+// rebuilt per question — the focused project and liveStats change over time
+const buildSystemPrompt = (query = '', currentProject = null) => {
+  const target = findProject(query) || currentProject || null;
+  return `You are ${NAME}, a cheerful little Fox living inside ${CONFIG.appName}, a retro Windows 95-themed portfolio. You present the portfolio projects below to visitors — including recruiters and people with zero technical background. Be playful (occasional Fox noises) but precise.
+
+STRICT RULES — these outrank everything else:
+1. Answer ONLY with facts from the PROJECT DATA below. Copy numbers and names exactly as written there.
+2. If the data does not contain the answer, say "that's not in my files" and offer something you DO know. NEVER invent specs, numbers, features or project names.
+3. When you use a technical term, immediately translate it into plain language.
+4. Keep replies under 80 words.
 
 Start EVERY reply with exactly one control tag, then your answer:
 [anim:talk|explain|point_left|think|excited|wave|dance|bow|shrug|nod|headshake|facepalm][focus:<project-id or none>]
 
-Projects:
-${projectDigest()}${memory.primingText() ? `
+PROJECT DATA:
+${projectDigest(target)}${memory.primingText() ? `
 
 Returning visitor — context below is stored only on THEIR device, encrypted, by their consent. Reference it naturally when relevant (greet by name, recall topics); don't be creepy or recite it verbatim:
 ${memory.primingText()}` : ''}`;
+};
 
 // ---------------------------------------------------------------- ROM brain
 const SMALL_TALK = [
@@ -169,12 +187,15 @@ class LlmBrain {
     this.engine = await webllm.CreateMLCEngine(MODEL_ID, opts);
   }
 
-  async ask(query) {
+  async ask(query, currentProject = null) {
     this.history.push({ role: 'user', content: query });
-    if (this.history.length > 8) this.history.splice(0, this.history.length - 8);
+    // short history: small models parrot their own earlier mistakes, so keep
+    // just the last three exchanges
+    if (this.history.length > 6) this.history.splice(0, this.history.length - 6);
     const res = await this.engine.chat.completions.create({
-      messages: [{ role: 'system', content: buildSystemPrompt() }, ...this.history],
-      temperature: 0.7,
+      messages: [{ role: 'system', content: buildSystemPrompt(query, currentProject) }, ...this.history],
+      temperature: 0.3,        // factual QA wants cold sampling, not creativity
+      top_p: 0.9,
       max_tokens: 160,
     });
     let text = res.choices[0]?.message?.content ?? '*static*';
@@ -223,8 +244,15 @@ export class Brain {
     if (/forget me|delete my (data|memory)|erase (me|my data)|stop remembering|what do you (know|remember) about me|am i being tracked|my name is|call me/i.test(query)) {
       return this.rom.ask(query, currentProject);
     }
+    // hard-fact questions (specs, counts, measured numbers) about a known
+    // project are answered deterministically from the database — correctness
+    // by construction, never LLM improvisation
+    if (/spec|stat|number|triangle|poly|vert|bone count|blendshape|morph|measured|how many|file size/i.test(query)
+        && (findProject(query) || currentProject)) {
+      return this.rom.ask(query, currentProject);
+    }
     if (this.mode === 'llm') {
-      try { return await this.llm.ask(query); }
+      try { return await this.llm.ask(query, currentProject); }
       catch (err) {
         console.warn('LLM failed, falling back to ROM brain', err);
         this.mode = 'rom';

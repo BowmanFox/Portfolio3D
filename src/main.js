@@ -387,11 +387,11 @@ function openPlayer() {
   win.body.innerHTML = `
     <div class="player-body">
       <div class="player-display">
-        <span class="scrolltxt">★ BOWMAN LO-FI RADIO ★ synthesized live in your browser ★ no files were harmed ★</span>
+        <span class="scrolltxt">★ ODE TO SADNESS ★ piano MIDI performed live in your browser ★ looped &amp; extended with variation passes ★</span>
         <div class="player-vis">${'<i></i>'.repeat(16)}</div>
       </div>
       <div class="player-row">
-        <button class="btn b-play">▶ Play beat</button>
+        <button class="btn b-play">▶ Play</button>
         <button class="btn b-stop">■ Stop</button>
         <button class="btn b-url">Open URL…</button>
       </div>

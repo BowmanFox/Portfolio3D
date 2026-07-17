@@ -30,6 +30,27 @@ KEY = HERE / '.devkey.pem'
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    # Explicit MIME map — checked BEFORE Python's mimetypes module, which on
+    # Windows reads the registry. Third-party installers routinely poison
+    # HKCR\.js to text/plain, and browsers refuse to execute ES modules
+    # served with a non-JavaScript type (the whole app silently fails).
+    extensions_map = {
+        '.js': 'text/javascript',
+        '.mjs': 'text/javascript',
+        '.css': 'text/css',
+        '.html': 'text/html',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml',
+        '.wasm': 'application/wasm',
+        '.mid': 'audio/midi',
+        '.fbx': 'application/octet-stream',
+        '': 'application/octet-stream',
+    }
+
     def end_headers(self):
         self.send_header('Cache-Control', 'no-cache')   # no stale modules
         super().end_headers()

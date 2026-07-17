@@ -6,8 +6,27 @@
 // so materials fall back to their plain colors instead of rendering black.
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const IMG_RE = /\.(png|jpe?g|tga|bmp|gif|webp|dds)(\?.*)?$/i;
+
+// Largest texture side we ever upload. Character art often ships at 4096² —
+// nine of those is ~¾ GB of VRAM, which spills to system RAM on ordinary
+// GPUs and makes every frame crawl. 2048 is indistinguishable at our
+// viewport sizes and costs a quarter of the memory.
+const MAX_TEX_SIZE = 2048;
+
+function capTexture(tex) {
+  const img = tex?.image;
+  if (!img || !img.width || Math.max(img.width, img.height) <= MAX_TEX_SIZE) return;
+  const scale = MAX_TEX_SIZE / Math.max(img.width, img.height);
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(img.width * scale));
+  c.height = Math.max(1, Math.round(img.height * scale));
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  tex.image = c;
+  tex.needsUpdate = true;
+}
 
 // filename (lowercased) → blob URL, fed by drag-dropped image files; lets a
 // visitor (or the portfolio owner) supply textures the FBX references but
@@ -50,11 +69,44 @@ export async function loadFBXSafe(source, { onProgress = null, onTexturesSettled
   };
 
   const loader = new FBXLoader(manager);
-  const obj = isFile
-    ? loader.parse(await source.arrayBuffer(), baseDir)
-    : await loader.loadAsync(source, (e) => {
-        if (e.lengthComputable) onProgress?.(e.loaded / e.total);
-      });
+
+  // FBXLoader warns once PER VERTEX about >4 skin weights — a 190k-vertex
+  // model emits tens of thousands of console.warn calls, which alone costs
+  // seconds and bloats the console. Collapse them into one summary.
+  const realWarn = console.warn;
+  let squelched = 0;
+  console.warn = (...args) => {
+    if (typeof args[0] === 'string' && args[0].includes('skinning weights')) { squelched++; return; }
+    realWarn(...args);
+  };
+  let obj;
+  try {
+    obj = isFile
+      ? loader.parse(await source.arrayBuffer(), baseDir)
+      : await loader.loadAsync(source, (e) => {
+          if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+        });
+  } finally {
+    console.warn = realWarn;
+    if (squelched) console.info(`FBXLoader: capped skin weights on ${squelched.toLocaleString()} vertices (>4 per vertex)`);
+  }
+
+  // FBX exports are usually UNINDEXED: every triangle carries three private
+  // vertices, so smooth surfaces duplicate each vertex ~6×. Welding true
+  // duplicates shrinks vertex, skinning and morph work with zero visual
+  // change (only exact-match vertices merge).
+  obj.traverse((n) => {
+    if (!n.isMesh || n.geometry.index) return;
+    if ((n.geometry.attributes.position?.count || 0) < 20000) return;
+    try {
+      const before = n.geometry.attributes.position.count;
+      const merged = mergeVertices(n.geometry);
+      if (merged.attributes.position.count < before * 0.9) {
+        n.geometry = merged;
+        console.info(`welded ${n.name || 'mesh'}: ${before.toLocaleString()} → ${merged.attributes.position.count.toLocaleString()} vertices`);
+      }
+    } catch { /* exotic attribute layouts: keep the original */ }
+  });
 
   // once every queued texture has settled, drop the ones that never got data
   let settled = false;
@@ -78,6 +130,8 @@ export async function loadFBXSafe(source, { onProgress = null, onTexturesSettled
           if (tex && !(tex.image && (tex.image.width || tex.image.videoWidth))) {
             m[slot] = null;
             m.needsUpdate = true;
+          } else if (tex) {
+            capTexture(tex);           // 4K+ art → 2048, quarter the VRAM
           }
         }
         // hair cards & cutout parts: alpha-blended skin meshes z-fight badly;
