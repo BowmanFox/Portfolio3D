@@ -183,3 +183,105 @@ kbd {
   border: 2px solid transparent;
 }
 .wall-swatch.current { border-color: var(--sel); }
+
+/* ================================================== application suite */
+.muted { color: #777; }
+.spacer { flex: 1; }
+.app-col { display: flex; flex-direction: column; height: 100%; gap: 5px; padding: 4px; }
+.app-toolbar { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.app-toolbar .btn { min-height: 26px; padding: 3px 10px; }
+.kv-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.kv-table td { padding: 5px 8px; border-bottom: 1px solid #e4e0d0; }
+.kv-table td:first-child { color: #555; width: 34%; }
+
+/* notepad */
+.np-text { flex: 1; resize: none; font-family: var(--mono); font-size: 13px; }
+
+/* paint */
+.paint-wrap { flex: 1; overflow: auto; box-shadow: var(--bevel-field); background: #808080; padding: 4px; }
+.p-canvas { background: #fff; cursor: crosshair; touch-action: none; display: block; }
+.paint-palette { display: flex; flex-wrap: wrap; gap: 3px; }
+.p-swatch { width: 22px; height: 22px; border: 1px solid #555; cursor: pointer; }
+
+/* minesweeper */
+.mines { align-items: center; }
+.mines-top { display: flex; gap: 14px; align-items: center; font-family: var(--mono); }
+.mines-top .m-count, .mines-top .m-time { background: #000; color: #f00; padding: 2px 6px; font-weight: bold; letter-spacing: 2px; }
+.mines-grid { display: grid; gap: 0; }
+.m-cell { width: 28px; height: 28px; font-weight: bold; font-size: 14px; background: var(--face); box-shadow: var(--bevel-out); border: none; cursor: pointer; padding: 0; }
+.m-cell.open { box-shadow: inset 0 0 0 1px #999; background: #d8d4c8; }
+.m-cell[data-n="1"] { color: #0000ff; } .m-cell[data-n="2"] { color: #007b00; }
+.m-cell[data-n="3"] { color: #ff0000; } .m-cell[data-n="4"] { color: #00007b; }
+.m-cell[data-n="5"] { color: #7b0000; } .m-cell[data-n="6"] { color: #007b7b; }
+
+/* calculator */
+.calc-display { text-align: right; font-family: var(--mono); font-size: 18px; }
+.calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; flex: 1; }
+.calc-grid .btn { font-size: 15px; min-height: 34px; }
+
+/* command prompt */
+.cmd { background: #000; color: #c8c8c8; font-family: var(--mono); font-size: 13px; padding: 6px; }
+.cmd.cmd-green { color: #2bd42b; }
+.cmd-log { flex: 1; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+.cmd-row { display: flex; gap: 4px; }
+.cmd-in { flex: 1; background: transparent; border: none; outline: none; color: inherit; font: inherit; box-shadow: none; min-height: auto; padding: 0; }
+
+/* internet explorer */
+.ie-url { flex: 1; min-width: 0; }
+.ie-page { flex: 1; overflow: auto; background: #fff; padding: 12px; user-select: text; }
+.ie-hero { background: linear-gradient(135deg, #001a54, #0a58c0); color: #fff; padding: 14px; margin-bottom: 10px; text-align: center; }
+.ie-hero h1 { margin: 0 0 4px; font-size: 22px; }
+
+/* task manager */
+.tm-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; border-bottom: 1px solid #e4e0d0; font-size: 12px; }
+.tm-row .btn { min-height: 22px; font-size: 11px; padding: 2px 8px; }
+
+/* tic tac toe */
+.ttt-grid { display: grid; grid-template-columns: repeat(3, 58px); gap: 4px; margin: 8px 0; }
+.ttt-c { width: 58px; height: 58px; font-size: 26px; background: #fff; box-shadow: var(--bevel-field); border: none; cursor: pointer; }
+.ttt-status { font-weight: bold; padding: 4px; }
+
+/* clock */
+.app-row-split { display: flex; gap: 10px; padding: 10px; height: 100%; }
+.clock-side { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.clk-digital { font-family: var(--mono); font-weight: bold; }
+.cal-side { flex: 1; }
+.cal-table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: center; }
+.cal-table th { color: #777; font-weight: normal; }
+.cal-table td { padding: 3px; }
+.cal-table td.today { background: var(--sel); color: #fff; border-radius: 3px; font-weight: bold; }
+
+/* display properties */
+.disp-monitor { align-self: center; width: 190px; height: 140px; background: #d8d4c8; border-radius: 10px 10px 4px 4px; padding: 12px 12px 22px; box-shadow: var(--bevel-out); }
+.disp-screen { width: 100%; height: 100%; border: 2px solid #333; background: var(--desktop); }
+
+/* search + companions */
+.search-split { display: flex; height: 100%; }
+.search-side { width: 158px; background: linear-gradient(180deg, #f3f7ff, #d9e4f5); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-right: 1px solid #b5c4dd; }
+.comp-cv { cursor: pointer; }
+.comp-bubble { background: #ffffe1; border: 1px solid #b9b26a; border-radius: 6px; padding: 5px 7px; font-size: 11px; min-height: 30px; text-align: center; }
+.comp-name { font-size: 10px; }
+.comp-swap { font-size: 11px; min-height: 24px; padding: 3px 8px; }
+.search-main { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 5px; min-width: 0; }
+.s-results { flex: 1; overflow-y: auto; background: #fff; }
+.s-row { display: flex; gap: 9px; padding: 7px 9px; cursor: pointer; align-items: center; border-bottom: 1px solid #eee; font-size: 12px; }
+.s-row:hover { background: #e8efff; }
+.s-row .s-ico { font-size: 20px; }
+
+/* XP start menu structure (skins live in the theme sheets) */
+.menu.start.xp { display: flex; flex-direction: column; padding: 0; min-width: 380px; }
+.xp-banner { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-weight: bold; font-size: 15px; color: #fff; }
+.xp-avatar { font-size: 24px; background: #fff; border-radius: 6px; padding: 3px 5px; }
+.xp-cols { display: flex; min-height: 260px; }
+.xp-left { width: 52%; background: #fff; padding: 5px 3px; overflow-y: auto; max-height: 330px; }
+.xp-right { width: 48%; padding: 5px 3px; overflow-y: auto; max-height: 330px; }
+.xp-footer { display: flex; justify-content: flex-end; gap: 4px; padding: 5px 8px; }
+.xp-footer .mi { color: #fff; }
+
+/* shutdown screen */
+#shutdown {
+  position: fixed; inset: 0; z-index: 20000; background: #000;
+  display: grid; place-items: center; text-align: center; cursor: pointer;
+}
+#shutdown p { color: #ff8c1a; font: bold 30px 'Times New Roman', serif; margin: 8px; }
+#shutdown .sd-hint { color: #444; font: 13px Tahoma, sans-serif; }
