@@ -681,6 +681,10 @@ function openDisplay(ctx) {
 // helping you dig through apps, projects and help topics.
 const COMPANIONS = [
   {
+    name: CONFIG.guideName, kind: 'awd',
+    lines: { idle: 'The pack is ready. What are we hunting?', search: '*ears swivel, nose to the ground*', found: 'Tracked it down! *victory yip*', none: 'Trail went cold… try other words?', pet: '*whole-body happy wiggle*' },
+  },
+  {
     name: 'Rusty', kind: 'dog',
     lines: { idle: 'What are we sniffing for today?', search: '*sniff sniff sniff*', found: 'Dug something up! Woof!', none: 'No bones in this yard…', pet: '*happy tail thumping*' },
   },
@@ -704,7 +708,41 @@ function drawCompanion(g, kind, t, state, blink) {
   const wag = Math.sin(t * (state === 'pet' || state === 'found' ? 16 : 5)) * (sad ? 0.08 : 0.5);
   const eyeH = blink ? 1.2 : 4;
 
-  if (kind === 'dog') {
+  if (kind === 'awd') {
+    // the African Wild Dog: white coat, black patches, ochre head with a
+    // black mask, enormous round ears, white-tipped tail
+    const earPerk = state === 'search' ? Math.sin(t * 12) * 0.12 : 0;
+    g.fillStyle = '#f2efe6';
+    g.beginPath(); g.ellipse(2, 14, 26, 19, 0, 0, 7); g.fill();               // body
+    g.fillStyle = '#2b2b2b';                                                   // patches
+    g.beginPath(); g.ellipse(14, 8, 9, 6, 0.6, 0, 7); g.fill();
+    g.beginPath(); g.ellipse(-6, 22, 8, 5, -0.4, 0, 7); g.fill();
+    g.fillStyle = '#c99a4e';
+    g.beginPath(); g.ellipse(-2, 6, 7, 5, 0.3, 0, 7); g.fill();                // tan patch
+    g.save(); g.translate(26, 8); g.rotate(-0.6 + wag);                        // tail
+    g.fillStyle = '#2b2b2b'; g.fillRect(0, -3.5, 15, 7);
+    g.fillStyle = '#fff'; g.beginPath(); g.ellipse(17, 0, 6, 4.5, 0, 0, 7); g.fill();
+    g.restore();
+    // ears first (behind head): the signature giant round ears
+    g.fillStyle = '#1d1d1d';
+    g.save(); g.rotate(-0.12 + earPerk);
+    g.beginPath(); g.ellipse(-22, -36 - (sad ? -4 : 0), 11, 13, -0.15, 0, 7); g.fill(); g.restore();
+    g.save(); g.rotate(0.12 - earPerk);
+    g.beginPath(); g.ellipse(10, -37 - (sad ? -4 : 0), 11, 13, 0.15, 0, 7); g.fill(); g.restore();
+    g.fillStyle = '#6b6257';
+    g.beginPath(); g.ellipse(-21, -35, 5.5, 7, -0.15, 0, 7); g.fill();         // inner ears
+    g.beginPath(); g.ellipse(9, -36, 5.5, 7, 0.15, 0, 7); g.fill();
+    g.fillStyle = '#c99a4e';
+    g.beginPath(); g.ellipse(-6, -18, 19, 16, 0, 0, 7); g.fill();              // ochre head
+    g.fillStyle = '#1d1d1d';
+    g.beginPath(); g.ellipse(-6, -24, 8, 7, 0, 0, 7); g.fill();                // black brow blaze
+    g.beginPath(); g.ellipse(-13, -9, 9, 7, 0.2, 0, 7); g.fill();              // dark muzzle
+    g.fillStyle = '#000';
+    g.beginPath(); g.arc(-19, -11, 3, 0, 7); g.fill();                         // nose
+    g.fillStyle = '#2ba8a0';                                                   // teal eyes
+    g.fillRect(-10, -22, 4, eyeH); g.fillRect(2, -22, 4, eyeH);
+    if (!blink) { g.fillStyle = '#000'; g.fillRect(-9, -21, 2, 2); g.fillRect(3, -21, 2, 2); }
+  } else if (kind === 'dog') {
     g.fillStyle = '#b5813f';
     g.beginPath(); g.ellipse(0, 14, 26, 20, 0, 0, 7); g.fill();               // body
     g.save(); g.translate(24, 8); g.rotate(-0.7 + wag);                        // tail
@@ -788,7 +826,8 @@ function openSearch(ctx) {
   let compIdx = store.get('search.companion', 0) % COMPANIONS.length;
   let state = 'idle', stateUntil = 0, blink = false, t = 0, raf;
   const comp = () => COMPANIONS[compIdx];
-  const say = (which) => { bubble.textContent = comp().lines[which]; nameEl.textContent = `${comp().name} the search ${comp().kind}`; };
+  const SPECIES = { awd: 'African Wild Dog', dog: 'dog', bot: 'robot', fox: 'fox' };
+  const say = (which) => { bubble.textContent = comp().lines[which]; nameEl.textContent = `${comp().name} the search ${SPECIES[comp().kind] ?? comp().kind}`; };
   const setState = (s, holdMs = 1600) => { state = s; stateUntil = performance.now() + holdMs; say(s); };
   const loop = () => {
     t += 1 / 60;

@@ -201,13 +201,10 @@ export class Desktop {
   // places pane), Log Off / Turn Off strip at the bottom.
   _wireStartMenu() {
     const btn = document.getElementById('start-btn');
-<<<<<<< Updated upstream
-=======
     // ANY click inside the start menu closes it — item handlers run first
     // (bubble order), so actions still fire; clicks on the banner, padding
     // or separators no longer leave it hanging open
     this.startEl.addEventListener('click', () => this.hideMenus());
->>>>>>> Stashed changes
     btn.addEventListener('click', () => {
       if (!this.startEl.hidden) { this.hideMenus(); return; }
       const m = this.startEl;
