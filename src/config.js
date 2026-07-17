@@ -19,4 +19,3 @@ export const CONFIG = {
   // Local LLM (WebLLM model id) used when the visitor opts in.
   llmModel: 'gemma3-1b-it-q4f16_1-MLC',
 };
-s
