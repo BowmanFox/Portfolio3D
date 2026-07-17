@@ -39,20 +39,24 @@ function projectDigest(target) {
   ).join('\n');
 }
 
-// rebuilt per question — the focused project and liveStats change over time
-const buildSystemPrompt = (query = '', currentProject = null) => {
+// rebuilt per question — the focused project, liveStats and scene change
+const buildSystemPrompt = (query = '', currentProject = null, sceneNote = '', hasImage = false) => {
   const target = findProject(query) || currentProject || null;
   return `You are ${NAME}, a cheerful little Fox living inside ${CONFIG.appName}, a retro Windows 95-themed portfolio. You present the portfolio projects below to visitors — including recruiters and people with zero technical background. Be playful (occasional Fox noises) but precise.
 
 STRICT RULES — these outrank everything else:
-1. Answer ONLY with facts from the PROJECT DATA below. Copy numbers and names exactly as written there.
+1. Answer ONLY with facts from the PROJECT DATA below${hasImage ? ' and what is visible in the attached image' : ''}. Copy numbers and names exactly as written there.
 2. If the data does not contain the answer, say "that's not in my files" and offer something you DO know. NEVER invent specs, numbers, features or project names.
 3. When you use a technical term, immediately translate it into plain language.
-4. Keep replies under 80 words.
+4. Keep replies under 80 words.${hasImage ? `
+5. The attached image is a LIVE SNAPSHOT of the 3D showroom — the guide character and the current exhibit on the pedestal. Describe only what is actually visible in it.` : ''}
 
 Start EVERY reply with exactly one control tag, then your answer:
 [anim:talk|explain|point_left|think|excited|wave|dance|bow|shrug|nod|headshake|facepalm][focus:<project-id or none>]
-
+${sceneNote ? `
+LIVE SCENE (measured from the running 3D engine, trustworthy):
+${sceneNote}
+` : ''}
 PROJECT DATA:
 ${projectDigest(target)}${memory.primingText() ? `
 
@@ -174,26 +178,70 @@ class LlmBrain {
     return window.isSecureContext ? 'no-webgpu' : 'insecure-context';
   }
 
+  /** True when the configured model accepts images (Phi-3.5-vision, LLaVA…). */
+  get visionCapable() { return /vision|vlm|llava/i.test(MODEL_ID); }
+
   async load(onProgress) {
     const webllm = await import(/* webpackIgnore: true */ WEBLLM_URL);
     const opts = {
       initProgressCallback: (p) => onProgress?.(p.progress ?? 0, p.text ?? ''),
     };
     // some embeds lack the Cache API — fall back to IndexedDB so the model
-    // still persists between visits instead of redownloading 400 MB
+    // still persists between visits instead of redownloading gigabytes
     if (!('caches' in window)) {
       opts.appConfig = { ...webllm.prebuiltAppConfig, useIndexedDBCache: true };
     }
-    this.engine = await webllm.CreateMLCEngine(MODEL_ID, opts);
+    // Some model configs (gemma family) ship BOTH context_window_size and
+    // sliding_window_size, and the runtime refuses: "Only one of
+    // context_window_size and sliding_window_size can be specified". Retry
+    // with each disabled in turn — self-healing across model choices.
+    const attempts = [undefined, { sliding_window_size: -1 }, { context_window_size: -1 }];
+    let lastErr = null;
+    for (const chatOpts of attempts) {
+      try {
+        this.engine = await webllm.CreateMLCEngine(MODEL_ID, opts, chatOpts);
+        return;
+      } catch (err) {
+        lastErr = err;
+        if (!/context_window_size|sliding_window_size/i.test(String(err))) throw err;
+        console.warn('window-size config conflict, retrying with override', chatOpts, err.message ?? err);
+      }
+    }
+    throw lastErr;
   }
 
-  async ask(query, currentProject = null) {
+  async ask(query, currentProject = null, extras = {}) {
+    // COMPUTER VISION: on visually-phrased questions, hand the model a live
+    // snapshot of the showroom so it answers from what is actually there
+    let userMsg = { role: 'user', content: query };
+    const visual = this.visionCapable && extras.getSnapshot &&
+      /look|colou?r|\bsee\b|describe|visual|shape|appear|design|wear|texture|style|cute|pretty|show me/i.test(query);
+    if (visual) {
+      const shot = extras.getSnapshot();
+      if (shot) {
+        userMsg = {
+          role: 'user',
+          content: [
+            { type: 'text', text: query },
+            { type: 'image_url', image_url: { url: shot } },
+          ],
+        };
+      }
+    }
+
+    // history stays text-only — replaying images every turn would blow the
+    // context and the prefill budget
     this.history.push({ role: 'user', content: query });
     // short history: small models parrot their own earlier mistakes, so keep
     // just the last three exchanges
     if (this.history.length > 6) this.history.splice(0, this.history.length - 6);
+    const messages = [
+      { role: 'system', content: buildSystemPrompt(query, currentProject, extras.sceneNote, visual) },
+      ...this.history.slice(0, -1),
+      userMsg,
+    ];
     const res = await this.engine.chat.completions.create({
-      messages: [{ role: 'system', content: buildSystemPrompt(query, currentProject) }, ...this.history],
+      messages,
       temperature: 0.3,        // factual QA wants cold sampling, not creativity
       top_p: 0.9,
       max_tokens: 160,
@@ -238,7 +286,7 @@ export class Brain {
   }
 
   /** @returns {Promise<{text, anim, projectId}>} */
-  async ask(query, currentProject) {
+  async ask(query, currentProject, extras = {}) {
     // privacy / identity intents are handled deterministically (rights like
     // erasure must never depend on what an LLM feels like doing)
     if (/forget me|delete my (data|memory)|erase (me|my data)|stop remembering|what do you (know|remember) about me|am i being tracked|my name is|call me/i.test(query)) {
@@ -252,7 +300,7 @@ export class Brain {
       return this.rom.ask(query, currentProject);
     }
     if (this.mode === 'llm') {
-      try { return await this.llm.ask(query, currentProject); }
+      try { return await this.llm.ask(query, currentProject, extras); }
       catch (err) {
         console.warn('LLM failed, falling back to ROM brain', err);
         this.mode = 'rom';

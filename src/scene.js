@@ -175,6 +175,66 @@ export class Showroom {
     this.onProjectChange?.(proj, this.projIdx);
   }
 
+  /**
+   * JPEG data-URL snapshot of the live scene — this is what the vision LLM
+   * "sees" when a visitor asks what something looks like.
+   */
+  captureSnapshot(width = 512) {
+    try {
+      this.renderer.render(this.scene, this.camera);   // fresh frame in the buffer
+      const src = this.renderer.domElement;
+      const h = Math.max(1, Math.round(width * src.height / Math.max(1, src.width)));
+      const c = document.createElement('canvas');
+      c.width = width; c.height = h;
+      c.getContext('2d').drawImage(src, 0, 0, width, h);
+      return c.toDataURL('image/jpeg', 0.72);
+    } catch (err) {
+      console.warn('scene snapshot failed:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Plain-text summary of what is visibly in the scene right now — measured
+   * from materials/geometry, so even a text-only LLM can "see" truthfully.
+   */
+  describeVisible() {
+    const colorName = (c) => {
+      if (!c) return 'unknown';
+      const { h, s, l } = (() => { const o = { h: 0, s: 0, l: 0 }; c.getHSL(o); return o; })();
+      if (l > 0.88) return 'white';
+      if (l < 0.12) return 'black';
+      if (s < 0.14) return l > 0.55 ? 'light gray' : 'dark gray';
+      const hue = h * 360;
+      if (hue < 18 || hue >= 345) return 'red';
+      if (hue < 42) return 'orange';
+      if (hue < 70) return 'yellow';
+      if (hue < 160) return 'green';
+      if (hue < 200) return 'cyan';
+      if (hue < 255) return 'blue';
+      if (hue < 290) return 'purple';
+      return 'pink';
+    };
+    const tally = (root) => {
+      const counts = new Map();
+      root?.traverse?.((n) => {
+        if (!n.isMesh || !n.visible) return;
+        for (const m of Array.isArray(n.material) ? n.material : [n.material]) {
+          if (!m) continue;
+          const key = m.map?.image ? 'textured/painted' : colorName(m.color);
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+      });
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k]) => k).join(', ');
+    };
+    const s = this.project?.liveStats;
+    const pedestal = `On the pedestal: ${this.project?.name ?? 'nothing'}` +
+      (s ? ` (~${s.triangles.toLocaleString('en-US')} triangles, ${s.meshes} mesh${s.meshes === 1 ? '' : 'es'})` : '') +
+      `; surface finish: ${tally(this.modelGroup) || 'unknown'}.`;
+    const guide = `The guide character stands nearby (surfaces: ${tally(this.character?.usingFBX ? this.character.fbxGroup : this.character?.proceduralGroup) || 'unknown'}).`;
+    return `${pedestal} ${guide}`;
+  }
+
   /** Re-resolve the current showcase FBX (e.g. after textures were dropped). */
   refreshProjectModel() {
     if (!this.project.modelFBX) return;

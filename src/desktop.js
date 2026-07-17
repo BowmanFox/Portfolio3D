@@ -199,6 +199,10 @@ export class Desktop {
   // ------------------------------------------------------------ start menu
   _wireStartMenu() {
     const btn = document.getElementById('start-btn');
+    // ANY click inside the start menu closes it — item handlers run first
+    // (bubble order), so actions still fire; clicks on the side strip,
+    // separators or padding no longer leave it hanging open
+    this.startEl.addEventListener('click', () => this.hideMenus());
     btn.addEventListener('click', () => {
       if (!this.startEl.hidden) { this.hideMenus(); return; }
       const m = this.startEl;
