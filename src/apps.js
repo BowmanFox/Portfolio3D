@@ -2,12 +2,15 @@
 // window manager. Each app is { id, icon, label, menu, open }. `menu` hints
 // where the start menu places it ('left' = programs column, 'right' = places
 // column). buildApps(ctx) wires apps that need desktop/theme/brain access.
+import * as THREE from 'three';
 import { Win, wm } from './wm.js';
-import { sfx, beat } from './audio.js';
+import { sfx, beat, pianoNote, getAnalyser, setMixer, getMixer, modemDial } from './audio.js';
 import { store } from './store.js';
 import { PROJECTS } from './projects.js';
 import { WALLPAPERS } from './desktop.js';
 import { CONFIG } from './config.js';
+import { Character } from './character.js';
+import { webSearch, pageSummary, weatherAt, WMO_CODES } from './datalink.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const el = (html) => {
@@ -288,6 +291,13 @@ function openCmd(ctx) {
 }
 
 // ============================================================ INTERNET EXPLORER
+let ieNav = null;   // last IE window's navigate fn — lets Search deep-link
+
+function openIEAt(ctx, url) {
+  openIE(ctx);
+  setTimeout(() => ieNav?.(url), 60);
+}
+
 function openIE(ctx) {
   const win = shell('iexplore', 'BOWMAN Portal - Internet Explorer', '🌐', { x: 60, y: 40, w: 560, h: 440 });
   if (!win) return;
@@ -307,6 +317,35 @@ function openIE(ctx) {
   const nav = (u, push = true) => {
     if (push) hist.push(u);
     url.value = u;
+    const escT = (s) => String(s).replace(/</g, '&lt;');
+    if (u.startsWith('datalink://')) {
+      // DATALINK: live article fetched from the real web (Wikipedia REST)
+      const title = decodeURIComponent(u.slice('datalink://'.length));
+      page.innerHTML = '<p class="muted">☎️ Dialing the datalink…</p>';
+      pageSummary(title).then((s) => {
+        page.innerHTML = `
+          <h2>🌐 ${escT(s.title)}</h2>
+          ${s.thumb ? `<img src="${s.thumb}" alt="" style="max-width:180px;float:right;margin:0 0 8px 10px;border:1px solid #ccc">` : ''}
+          <p>${escT(s.extract)}</p>
+          <p class="muted" style="font-size:11px">Live from Wikipedia via Datalink — fetched straight from your browser, no middleman.</p>
+          ${s.url ? '<p><button class="btn ie-ext2">Open full article ↗</button></p>' : ''}`;
+        $('.ie-ext2', page)?.addEventListener('click', () => window.open(s.url, '_blank', 'noopener'));
+      }).catch((e) => {
+        page.innerHTML = `<h3>📡 Datalink error</h3><p>${escT(e.message)} — the tubes may be clogged.</p>`;
+      });
+      return;
+    }
+    if (u.startsWith('websearch://')) {
+      const q = decodeURIComponent(u.slice('websearch://'.length));
+      page.innerHTML = `<p class="muted">🔎 Searching the web for “${escT(q)}”…</p>`;
+      webSearch(q, 8).then((hits) => {
+        page.innerHTML = `<h3>🌐 Web results for “${escT(q)}”</h3>` +
+          (hits.length ? hits.map(h => `<p>▸ <a href="#" data-u="datalink://${encodeURIComponent(h.title)}">${escT(h.title)}</a>${h.desc ? ` — <span class="muted">${escT(h.desc)}</span>` : ''}</p>`).join('')
+                       : '<p class="muted">Nothing found out there.</p>');
+        page.querySelectorAll('a[data-u]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); nav(a.dataset.u); sfx.click(); }));
+      }).catch((e) => { page.innerHTML = `<p>Datalink error: ${escT(e.message)}</p>`; });
+      return;
+    }
     if (u.startsWith('http')) {
       page.innerHTML = `<h3>🔒 External site</h3><p>Real websites can't be framed inside the portal, but I can open it in a new tab for you.</p><p><button class="btn ie-ext">Open ${u.replace(/</g, '&lt;')} ↗</button></p>`;
       $('.ie-ext', page).addEventListener('click', () => window.open(u, '_blank', 'noopener'));
@@ -333,10 +372,18 @@ function openIE(ctx) {
     // home
     page.innerHTML = `
       <div class="ie-hero"><h1>⭐ BOWMAN PORTAL ⭐</h1><p>Your gateway to ${PROJECTS.length} handcrafted exhibits — best viewed at 800×600.</p></div>
+      <p class="ie-searchrow">🌐 Search the real web:
+        <input class="field ie-q" placeholder="anything…" spellcheck="false">
+        <button class="btn ie-qgo">Datalink!</button></p>
       ${PROJECTS.map(p => `<p>▸ <a href="#" data-u="bowman://project/${p.id}">${p.icon} ${p.name}</a> — ${p.blurb}</p>`).join('')}
       <hr><p class="muted">You are visitor № ${Math.floor(Math.random() * 90000 + 10000)}. This page is under construction. 🚧</p>`;
     page.querySelectorAll('a[data-u]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); nav(a.dataset.u); sfx.click(); }));
+    const q = $('.ie-q', page);
+    const go = () => { if (q.value.trim()) nav('websearch://' + encodeURIComponent(q.value.trim())); };
+    $('.ie-qgo', page)?.addEventListener('click', go);
+    q?.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   };
+  ieNav = nav;
   $('.ie-go', win.body).addEventListener('click', () => nav(url.value.trim()));
   url.addEventListener('keydown', (e) => { if (e.key === 'Enter') nav(url.value.trim()); });
   $('.ie-home', win.body).addEventListener('click', () => nav('bowman://home'));
@@ -677,26 +724,85 @@ function openDisplay(ctx) {
 }
 
 // ============================================================ SEARCH (with companions!)
-// The XP search sidekick, reborn: three interactive characters take turns
-// helping you dig through apps, projects and help topics.
+// The XP search sidekick, reborn in 3D: the actual FBX characters — with the
+// full bone-retargeting/animation pipeline — take turns helping you dig
+// through apps, projects, help topics and the live web.
 const COMPANIONS = [
   {
-    name: CONFIG.guideName, kind: 'awd',
+    name: CONFIG.guideName, species: 'African Wild Dog', fbx: 'src/AWD.fbx',
     lines: { idle: 'The pack is ready. What are we hunting?', search: '*ears swivel, nose to the ground*', found: 'Tracked it down! *victory yip*', none: 'Trail went cold… try other words?', pet: '*whole-body happy wiggle*' },
   },
   {
-    name: 'Rusty', kind: 'dog',
-    lines: { idle: 'What are we sniffing for today?', search: '*sniff sniff sniff*', found: 'Dug something up! Woof!', none: 'No bones in this yard…', pet: '*happy tail thumping*' },
+    name: 'Commander', species: 'Commander unit', fbx: 'src/FORCOMMANDER17 - Copy.fbx',
+    lines: { idle: 'Reporting for search duty.', search: 'Sweeping the sector…', found: 'Target acquired. Outstanding.', none: 'Sector clear. Nothing found.', pet: '*maintains composure… tail betrays him*' },
   },
   {
-    name: 'Pix', kind: 'bot',
-    lines: { idle: 'QUERY INPUT AWAITED.', search: 'SCANNING DATABANKS…', found: 'MATCHES LOCATED. BEEP.', none: 'ZERO RESULTS. SAD BEEP.', pet: 'AFFECTION.EXE RUNNING' },
-  },
-  {
-    name: 'Ember', kind: 'fox',
-    lines: { idle: 'Whatcha lookin\' for?', search: '*rustles through papers*', found: 'Ta-daa! Found it!', none: 'Hmm, nothing. Typo maybe?', pet: '*delighted fox chirp*' },
+    name: 'Weekend', species: 'Weekend model', fbx: 'src/weekend21.fbx',
+    lines: { idle: 'Loose plans, open mind. Whatcha need?', search: '*casually flips through everything*', found: 'Oh nice — here it is.', none: 'Nada. Vibes only today.', pet: '*appreciative slow nod*' },
   },
 ];
+
+// Character instances are heavy (FBX parse + GPU upload) — cache for the
+// session so switching companions back and forth is instant.
+const companionCache = new Map();
+
+/** Tiny three.js stage rendering a full Character in the search sidebar. */
+class CompanionView {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.char = null;
+    this.ready = this._init();
+  }
+  async _init() {
+    let r;
+    try {
+      r = new THREE.WebGPURenderer({ canvas: this.canvas, alpha: true, antialias: true });
+      await r.init();
+    } catch {
+      r = new THREE.WebGPURenderer({ canvas: this.canvas, alpha: true, forceWebGL: true });
+      await r.init();
+    }
+    this.renderer = r;
+    r.setPixelRatio(Math.min(devicePixelRatio || 1, 1.6));
+    r.setSize(150, 170, false);
+    this.scene = new THREE.Scene();
+    this.scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x777066, 1.9));
+    const key = new THREE.DirectionalLight(0xfff4e0, 2.6);
+    key.position.set(1.4, 2.4, 2.2);
+    this.scene.add(key);
+    this.camera = new THREE.PerspectiveCamera(38, 150 / 170, 0.1, 20);
+    this.camera.position.set(0, 1.28, 1.75);
+    this.camera.lookAt(0, 1.05, 0);
+    this.clock = new THREE.Clock();
+    r.setAnimationLoop(() => {
+      const dt = Math.min(this.clock.getDelta(), 0.1);
+      if (this.char) this.char.update(dt, this.camera.position);   // head tracks YOU
+      r.render(this.scene, this.camera);
+    });
+  }
+  async show(def, onLoading) {
+    await this.ready;
+    let entry = companionCache.get(def.fbx);
+    if (!entry) {
+      const char = new Character();
+      entry = { char, loaded: char.loadFBX(def.fbx).then(() => true).catch((e) => { console.warn('companion load failed:', e); return false; }) };
+      companionCache.set(def.fbx, entry);
+      onLoading?.();
+    }
+    const ok = await entry.loaded;
+    if (this.char) this.scene.remove(this.char.root);
+    this.char = entry.char;
+    this.char.root.position.set(0, 0, 0);
+    this.char.root.rotation.y = 0.12;
+    this.scene.add(this.char.root);
+    return ok;
+  }
+  setState(mood) {
+    const map = { idle: 'idle', search: 'think', found: 'excited', none: 'headshake', pet: 'wave' };
+    this.char?.setState(map[mood] ?? 'idle', { hold: mood === 'idle' ? 0 : 3 });
+  }
+  dispose() { this.renderer?.setAnimationLoop(null); }
+}
 
 function drawCompanion(g, kind, t, state, blink) {
   g.clearRect(0, 0, 120, 120);
@@ -800,47 +906,62 @@ function drawCompanion(g, kind, t, state, blink) {
 }
 
 function openSearch(ctx) {
-  const win = shell('search', 'Search', '🔍', { x: 110, y: 60, w: 520, h: 420 });
+  const win = shell('search', 'Search', '🔍', { x: 110, y: 60, w: 560, h: 440 });
   if (!win) return;
   win.body.innerHTML = `
     <div class="search-split">
       <div class="search-side">
-        <canvas class="comp-cv" width="120" height="120" title="Click to pet!"></canvas>
+        <div class="comp-stage">
+          <canvas class="comp-cv" width="150" height="170" title="Click to pet!"></canvas>
+          <div class="comp-hearts"></div>
+        </div>
         <div class="comp-bubble"></div>
         <div class="comp-name muted"></div>
         <button class="btn comp-swap">Change character</button>
       </div>
       <div class="search-main">
         <div class="app-toolbar">
-          <input class="field s-in" placeholder="Search apps, projects, help…" spellcheck="false">
+          <input class="field s-in" placeholder="Search apps, projects, help… and the web" spellcheck="false">
         </div>
         <div class="s-results sunken"></div>
       </div>
     </div>`;
-  const cv = $('.comp-cv', win.body), g = cv.getContext('2d');
+  const cv = $('.comp-cv', win.body);
+  const hearts = $('.comp-hearts', win.body);
   const bubble = $('.comp-bubble', win.body);
   const nameEl = $('.comp-name', win.body);
   const input = $('.s-in', win.body);
   const results = $('.s-results', win.body);
+  const esc = (s) => String(s).replace(/</g, '&lt;');
 
+  const view = new CompanionView(cv);
   let compIdx = store.get('search.companion', 0) % COMPANIONS.length;
-  let state = 'idle', stateUntil = 0, blink = false, t = 0, raf;
   const comp = () => COMPANIONS[compIdx];
-  const SPECIES = { awd: 'African Wild Dog', dog: 'dog', bot: 'robot', fox: 'fox' };
-  const say = (which) => { bubble.textContent = comp().lines[which]; nameEl.textContent = `${comp().name} the search ${SPECIES[comp().kind] ?? comp().kind}`; };
-  const setState = (s, holdMs = 1600) => { state = s; stateUntil = performance.now() + holdMs; say(s); };
-  const loop = () => {
-    t += 1 / 60;
-    if (state !== 'idle' && performance.now() > stateUntil) { state = 'idle'; say('idle'); }
-    if (Math.random() < 0.008) { blink = true; setTimeout(() => { blink = false; }, 130); }
-    drawCompanion(g, comp().kind, t, state, blink);
-    raf = requestAnimationFrame(loop);
+  const say = (which) => {
+    bubble.textContent = comp().lines[which];
+    nameEl.textContent = `${comp().name} the search ${comp().species}`;
   };
-  cv.addEventListener('pointerdown', () => { setState('pet', 1500); sfx.ding(); });
+  const setState = (mood) => { say(mood); view.setState(mood); };
+  const showCompanion = async () => {
+    say('idle');
+    const ok = await view.show(comp(), () => { bubble.textContent = `*${comp().name} is on the way… (first load)*`; });
+    if (!ok) bubble.textContent = `${comp().name} got lost on the way here. Try another character?`;
+    else say('idle');
+  };
+  cv.addEventListener('pointerdown', () => {
+    setState('pet');
+    sfx.ding();
+    for (let i = 0; i < 4; i++) {
+      const h = el(`<span class="heart" style="left:${28 + Math.random() * 80}px;animation-delay:${i * 0.14}s">❤</span>`);
+      hearts.appendChild(h);
+      setTimeout(() => h.remove(), 1600 + i * 140);
+    }
+  });
   $('.comp-swap', win.body).addEventListener('click', () => {
     compIdx = (compIdx + 1) % COMPANIONS.length;
     store.set('search.companion', compIdx);
-    setState('idle', 0); say('idle'); sfx.click();
+    sfx.click();
+    showCompanion();
   });
 
   const corpus = () => [
@@ -852,35 +973,493 @@ function openSearch(ctx) {
     { icon: '⌨️', title: 'Keyboard shortcuts', sub: 'Help topic', act: () => ctx.allApps().find(a => a.id === 'help')?.open() },
     { icon: '🔒', title: 'Privacy & memory', sub: 'Help topic — "forget me", encryption', act: () => ctx.allApps().find(a => a.id === 'settings')?.open() },
   ];
+
+  // DATALINK: live web results appended below the local ones
+  let webToken = 0;
+  const webRun = async (q) => {
+    const token = ++webToken;
+    const sec = el('<div class="s-websec"><div class="s-webhead">🌐 Datalink — live web results</div><p class="muted" style="padding:2px 8px">dialing…</p></div>');
+    results.appendChild(sec);
+    try {
+      const hits = await webSearch(q, 5);
+      if (token !== webToken) return;                       // stale query
+      sec.querySelector('p')?.remove();
+      if (!hits.length) {
+        sec.appendChild(el('<p class="muted" style="padding:2px 8px">The web has nothing. Suspicious.</p>'));
+        return;
+      }
+      for (const h of hits) {
+        const row = el(`<div class="s-row"><span class="s-ico">🌐</span><span><b>${esc(h.title)}</b><br><span class="muted">${esc(h.desc || 'Wikipedia article — click to read via Datalink')}</span></span></div>`);
+        row.addEventListener('click', () => { openIEAt(ctx, 'datalink://' + h.title); sfx.open(); });
+        sec.appendChild(row);
+      }
+      setState('found');
+    } catch (err) {
+      if (token !== webToken) return;
+      sec.querySelector('p')?.remove();
+      sec.appendChild(el(`<p class="muted" style="padding:2px 8px">Datalink offline (${esc(err.message)}).</p>`));
+    }
+  };
+
   let debounce;
   const run = () => {
     const q = input.value.trim().toLowerCase();
     results.innerHTML = '';
-    if (!q) { setState('idle', 0); results.innerHTML = '<p class="muted" style="padding:8px">Type to search. Or pet the assistant. Both are productive.</p>'; return; }
+    webToken++;                                             // cancel stale web fetches
+    if (!q) { setState('idle'); results.innerHTML = '<p class="muted" style="padding:8px">Type to search apps, exhibits — and the real web. Or pet the assistant. All productive.</p>'; return; }
     const hits = corpus().filter(r =>
       r.title.toLowerCase().includes(q) || r.sub.toLowerCase().includes(q) || (r.keys || '').toLowerCase().includes(q));
     if (hits.length) {
       setState('found');
-      for (const h of hits.slice(0, 12)) {
-        const row = el(`<div class="s-row"><span class="s-ico">${h.icon}</span><span><b>${h.title}</b><br><span class="muted">${h.sub}</span></span></div>`);
+      for (const h of hits.slice(0, 10)) {
+        const row = el(`<div class="s-row"><span class="s-ico">${h.icon}</span><span><b>${esc(h.title)}</b><br><span class="muted">${esc(h.sub)}</span></span></div>`);
         row.addEventListener('click', () => { h.act(); sfx.open(); });
         results.appendChild(row);
       }
     } else {
-      setState('none', 2600);
-      results.innerHTML = `<p class="muted" style="padding:8px">Nothing matched “${input.value.replace(/</g, '&lt;')}”.</p>`;
+      setState('none');
+      results.innerHTML = `<p class="muted" style="padding:8px">Nothing local matched “${esc(input.value)}”. Checking the web…</p>`;
     }
+    webRun(q);
   };
   input.addEventListener('input', () => {
-    setState('search', 900);
+    setState('search');
     clearTimeout(debounce);
-    debounce = setTimeout(run, 350);
+    debounce = setTimeout(run, 380);
   });
-  say('idle');
+  showCompanion();
   run();
+  win.onClose = () => view.dispose();
+  setTimeout(() => input.focus(), 120);
+}
+
+// ============================================================ VISUALIZER
+function openVisualizer() {
+  const win = shell('visualizer', 'Visualizer', '🎚️', { x: 300, y: 60, w: 360, h: 240, resizable: false });
+  if (!win) return;
+  win.body.innerHTML = `<div class="app-col"><canvas class="viz" width="330" height="170" style="background:#000"></canvas>
+    <div class="app-toolbar"><button class="btn v-play">▶ Music</button><span class="muted">spectrum of the music bus</span></div></div>`;
+  const cv = $('.viz', win.body), g = cv.getContext('2d');
+  $('.v-play', win.body).addEventListener('click', () => { beat.toggle(); sfx.click(); });
+  let raf;
+  const loop = () => {
+    const an = getAnalyser();
+    g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
+    if (an) {
+      const data = new Uint8Array(an.frequencyBinCount);
+      an.getByteFrequencyData(data);
+      const bars = 32, bw = cv.width / bars;
+      for (let i = 0; i < bars; i++) {
+        const v = data[Math.floor(i * data.length / bars / 1.6)] / 255;
+        const h = v * (cv.height - 8);
+        g.fillStyle = `hsl(${120 - v * 110} 90% 50%)`;
+        for (let y = 0; y < h; y += 7) g.fillRect(i * bw + 2, cv.height - 4 - y - 5, bw - 4, 5);
+      }
+    } else {
+      g.fillStyle = '#2bd42b'; g.font = '12px monospace';
+      g.fillText('click ▶ Music to feed me', 80, 90);
+    }
+    raf = requestAnimationFrame(loop);
+  };
   loop();
   win.onClose = () => cancelAnimationFrame(raf);
-  setTimeout(() => input.focus(), 120);
+}
+
+// ============================================================ CHARACTER MAP
+function openCharmap() {
+  const win = shell('charmap', 'Character Map', '🔣', { x: 200, y: 100, w: 420, h: 340 });
+  if (!win) return;
+  const CHARS = '☺☻♥♦♣♠•◘○◙♂♀♪♫☼►◄↕‼¶§▬↨↑↓→←∟↔▲▼†‡°±×÷≈≠≤≥∞µΩ∑√∫αβγδεπστφω®©™«»¿¡№☎✂✈✉✎✓✗★☆♻�category⚡❄❤➔' .replace('category','');
+  win.body.innerHTML = `<div class="app-col"><div class="cm-grid sunken">${[...CHARS].map(c => `<button class="cm-c" title="copy">${c}</button>`).join('')}</div>
+    <div class="app-toolbar"><span class="cm-status muted">Click a character to copy it.</span></div></div>`;
+  const status = $('.cm-status', win.body);
+  win.body.querySelectorAll('.cm-c').forEach(b => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.textContent); status.textContent = `Copied ${b.textContent} to the clipboard.`; sfx.click(); }
+    catch { status.textContent = 'Clipboard blocked by the browser.'; }
+  }));
+}
+
+// ============================================================ PIANO
+function openPiano() {
+  const win = shell('piano', 'Piano', '🎹', { x: 160, y: 200, w: 480, h: 220, resizable: false });
+  if (!win) return;
+  win.el.dataset.trapkeys = '1';
+  const NOTES = [['C', 60], ['C#', 61], ['D', 62], ['D#', 63], ['E', 64], ['F', 65], ['F#', 66], ['G', 67], ['G#', 68], ['A', 69], ['A#', 70], ['B', 71], ['C', 72], ['C#', 73], ['D', 74], ['D#', 75], ['E', 76]];
+  const KEYMAP = 'awsedftgyhujkolp;';
+  win.body.innerHTML = `<div class="app-col"><div class="piano-keys">${NOTES.map(([n, m], i) =>
+    `<button class="pk ${n.includes('#') ? 'black' : 'white'}" data-m="${m}"><span>${KEYMAP[i] ?? ''}</span></button>`).join('')}</div>
+    <p class="muted" style="text-align:center">play with the mouse or the ${KEYMAP.toUpperCase()} keys</p></div>`;
+  const play = (m) => pianoNote(m, 96, 0, 1.4);
+  win.body.querySelectorAll('.pk').forEach(k => k.addEventListener('pointerdown', () => { play(+k.dataset.m); k.classList.add('pressed'); setTimeout(() => k.classList.remove('pressed'), 180); }));
+  const keys = (e) => {
+    if (!win.el.classList.contains('focused') || e.repeat) return;
+    const i = KEYMAP.indexOf(e.key);
+    if (i >= 0 && NOTES[i]) { play(NOTES[i][1]); e.preventDefault(); }
+  };
+  window.addEventListener('keydown', keys);
+  win.onClose = () => window.removeEventListener('keydown', keys);
+}
+
+// ============================================================ PONG
+function openPong() {
+  const win = shell('pong', 'Pong', '🏓', { x: 240, y: 110, w: 420, h: 320, resizable: false });
+  if (!win) return;
+  win.body.innerHTML = `<div class="app-col"><div class="app-toolbar"><span class="pg-score">0 : 0</span><span class="spacer"></span><span class="muted">mouse moves your paddle</span></div>
+    <canvas class="pg" width="380" height="230" style="background:#000"></canvas></div>`;
+  const cv = $('.pg', win.body), g = cv.getContext('2d');
+  let py = 95, ay = 95, bx = 190, by = 115, vx = 3, vy = 1.6, ps = 0, as = 0, timer;
+  cv.addEventListener('pointermove', (e) => {
+    const r = cv.getBoundingClientRect();
+    py = Math.max(0, Math.min(190, (e.clientY - r.top) * cv.height / r.height - 20));
+  });
+  const step = () => {
+    bx += vx; by += vy;
+    if (by < 4 || by > cv.height - 4) vy *= -1;
+    if (bx < 16 && by > py && by < py + 40) { vx = Math.abs(vx) * 1.04; vy += (by - py - 20) * 0.06; sfx.click(); }
+    if (bx > cv.width - 16 && by > ay && by < ay + 40) { vx = -Math.abs(vx) * 1.04; sfx.click(); }
+    ay += Math.sign(by - ay - 20) * Math.min(2.6, Math.abs(by - ay - 20) * 0.1);
+    if (bx < 0) { as++; reset(); } else if (bx > cv.width) { ps++; reset(); }
+    $('.pg-score', win.body).textContent = `${ps} : ${as}`;
+    g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
+    g.fillStyle = '#fff';
+    for (let y = 0; y < cv.height; y += 16) g.fillRect(cv.width / 2 - 1, y, 2, 8);
+    g.fillRect(8, py, 6, 40); g.fillRect(cv.width - 14, ay, 6, 40);
+    g.fillRect(bx - 4, by - 4, 8, 8);
+  };
+  const reset = () => { bx = cv.width / 2; by = cv.height / 2; vx = (Math.random() < 0.5 ? 3 : -3); vy = (Math.random() - 0.5) * 3; if (ps >= 5 || as >= 5) { (ps >= 5 ? sfx.ding : sfx.error)(); ps = 0; as = 0; } };
+  timer = setInterval(step, 1000 / 60);
+  win.onClose = () => clearInterval(timer);
+}
+
+// ============================================================ BREAKOUT
+function openBreakout() {
+  const win = shell('breakout', 'Breakout', '🧱', { x: 260, y: 90, w: 420, h: 350, resizable: false });
+  if (!win) return;
+  win.body.innerHTML = `<div class="app-col"><div class="app-toolbar"><span class="bo-hud">Lives: 3</span></div>
+    <canvas class="bo" width="380" height="260" style="background:#000"></canvas></div>`;
+  const cv = $('.bo', win.body), g = cv.getContext('2d');
+  let px = 160, bx, by, vx, vy, lives, bricks, timer;
+  const COLS = 10, ROWS = 5;
+  const reset = (full) => {
+    if (full) { lives = 3; bricks = Array.from({ length: COLS * ROWS }, () => true); }
+    bx = cv.width / 2; by = 170; vx = 2.4 * (Math.random() < 0.5 ? 1 : -1); vy = -3;
+  };
+  cv.addEventListener('pointermove', (e) => {
+    const r = cv.getBoundingClientRect();
+    px = Math.max(0, Math.min(cv.width - 60, (e.clientX - r.left) * cv.width / r.width - 30));
+  });
+  const step = () => {
+    bx += vx; by += vy;
+    if (bx < 4 || bx > cv.width - 4) vx *= -1;
+    if (by < 4) vy = Math.abs(vy);
+    if (by > cv.height - 14 && bx > px && bx < px + 60) { vy = -Math.abs(vy); vx += (bx - px - 30) * 0.05; sfx.click(); }
+    else if (by > cv.height) { lives--; sfx.error(); if (lives <= 0) reset(true); else reset(false); }
+    const c = Math.floor(bx / (cv.width / COLS)), r0 = Math.floor((by - 20) / 14);
+    if (r0 >= 0 && r0 < ROWS && c >= 0 && c < COLS && bricks[r0 * COLS + c]) {
+      bricks[r0 * COLS + c] = false; vy *= -1; sfx.menu();
+      if (bricks.every(b => !b)) { sfx.ding(); reset(true); }
+    }
+    $('.bo-hud', win.body).textContent = `Lives: ${lives} · Bricks: ${bricks.filter(Boolean).length}`;
+    g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
+    bricks.forEach((b, i) => {
+      if (!b) return;
+      const row = Math.floor(i / COLS);
+      g.fillStyle = `hsl(${row * 34} 85% 55%)`;
+      g.fillRect((i % COLS) * (cv.width / COLS) + 2, 20 + row * 14, cv.width / COLS - 4, 11);
+    });
+    g.fillStyle = '#fff';
+    g.fillRect(px, cv.height - 10, 60, 6);
+    g.fillRect(bx - 4, by - 4, 8, 8);
+  };
+  reset(true);
+  timer = setInterval(step, 1000 / 60);
+  win.onClose = () => clearInterval(timer);
+}
+
+// ============================================================ MEMORY MATCH
+function openMemory() {
+  const win = shell('memory', 'Memory Match', '🃏', { x: 220, y: 80, w: 330, h: 400, resizable: false });
+  if (!win) return;
+  const EMOJI = ['🦴', '🌵', '🚀', '🎈', '🐟', '⚙️', '🌙', '🍕'];
+  let first = null, lock = false, moves = 0, matched = 0;
+  const deck = [...EMOJI, ...EMOJI].sort(() => Math.random() - 0.5);
+  win.body.innerHTML = `<div class="app-col" style="align-items:center">
+    <div class="mem-hud muted">Moves: 0</div>
+    <div class="mem-grid">${deck.map((e, i) => `<button class="mem-c" data-i="${i}" data-e="${e}">?</button>`).join('')}</div></div>`;
+  const hud = $('.mem-hud', win.body);
+  win.body.querySelectorAll('.mem-c').forEach(c => c.addEventListener('click', () => {
+    if (lock || c.classList.contains('done') || c === first) return;
+    c.textContent = c.dataset.e; sfx.click();
+    if (!first) { first = c; return; }
+    moves++; hud.textContent = `Moves: ${moves}`;
+    if (first.dataset.e === c.dataset.e) {
+      first.classList.add('done'); c.classList.add('done');
+      matched++; first = null; sfx.ding();
+      if (matched === EMOJI.length) hud.textContent = `Cleared in ${moves} moves! 🎉`;
+    } else {
+      lock = true;
+      const a = first; first = null;
+      setTimeout(() => { a.textContent = '?'; c.textContent = '?'; lock = false; }, 700);
+    }
+  }));
+}
+
+// ============================================================ WINVER
+function openWinver() {
+  const win = shell('winver', `About ${CONFIG.appName}`, '🪟', { x: 270, y: 150, w: 380, h: 260, resizable: false });
+  if (!win) return;
+  win.body.classList.add('sunken');
+  win.body.innerHTML = `
+    <h2 style="margin:4px 0">🪟 ${CONFIG.appName}</h2>
+    <p><b>Version 5.1</b> (Build 2600.bowman_sp3)<br>© ${new Date().getFullYear()} ${CONFIG.brandName}, Inc.</p>
+    <p>This product is licensed to:<br><b>A distinguished visitor</b><br>and their ${PROJECTS.length} favorite exhibits</p>
+    <p class="muted" style="font-size:11px">Physical memory available to the desktop: yes.</p>`;
+}
+
+// ============================================================ DEFRAG
+function openDefrag() {
+  const win = shell('defrag', 'Disk Defragmenter', '🧩', { x: 190, y: 70, w: 440, h: 330 });
+  if (!win) return;
+  const N = 640;
+  win.body.innerHTML = `<div class="app-col">
+    <div class="dfg-grid sunken">${Array.from({ length: N }, () => '<i></i>').join('')}</div>
+    <div class="app-toolbar"><button class="btn dfg-go">Defragment C:</button><span class="dfg-status muted">Analysis: your files are an absolute mess.</span></div></div>`;
+  const cells = [...win.body.querySelectorAll('.dfg-grid i')];
+  const status = $('.dfg-status', win.body);
+  cells.forEach(c => { c.className = Math.random() < 0.55 ? 'frag' : Math.random() < 0.5 ? 'used' : ''; });
+  let timer;
+  $('.dfg-go', win.body).addEventListener('click', () => {
+    clearInterval(timer);
+    sfx.click();
+    let i = 0;
+    const frags = cells.map((c, idx) => [c, idx]).filter(([c]) => c.className === 'frag');
+    timer = setInterval(() => {
+      for (let k = 0; k < 6 && i < frags.length; k++, i++) {
+        frags[i][0].className = 'used';
+        cells[i % cells.length].classList.add('scan');
+        setTimeout(((el2) => () => el2.classList.remove('scan'))(cells[i % cells.length]), 120);
+      }
+      status.textContent = `Defragmenting… ${Math.round(i / frags.length * 100)}%`;
+      if (i >= frags.length) {
+        clearInterval(timer);
+        status.textContent = 'Defragmentation complete. The files feel much better now.';
+        sfx.ding();
+      }
+    }, 60);
+  });
+  win.onClose = () => clearInterval(timer);
+}
+
+// ============================================================ DIAL-UP
+function openDialup() {
+  const win = shell('dialup', 'Dial-Up Networking', '☎️', { x: 300, y: 170, w: 340, h: 240, resizable: false });
+  if (!win) return;
+  win.body.innerHTML = `<div class="app-col" style="align-items:center;justify-content:center;gap:10px">
+    <p>📞 Connect to: <b>BOWMANNET (56k)</b></p>
+    <div class="progress" style="width:85%"><i></i></div>
+    <p class="du-status muted">Ready to dial. Headphones advised.</p>
+    <button class="btn du-dial">☎️ Dial</button></div>`;
+  const status = $('.du-status', win.body);
+  const bar = win.body.querySelector('.progress i');
+  let timer;
+  $('.du-dial', win.body).addEventListener('click', (e) => {
+    e.target.disabled = true;
+    const dur = modemDial() || 5.4;
+    const t0 = performance.now();
+    const MSGS = ['Dialing…', 'Handshaking…', 'Negotiating protocols…', 'Screaming at the phone line…', 'Verifying username and password…'];
+    timer = setInterval(() => {
+      const p = Math.min(1, (performance.now() - t0) / (dur * 1000));
+      bar.style.width = `${p * 100}%`;
+      status.textContent = MSGS[Math.min(MSGS.length - 1, Math.floor(p * MSGS.length))];
+      if (p >= 1) {
+        clearInterval(timer);
+        status.textContent = '✅ Connected at 56,000 bps. The Datalink is hot.';
+        e.target.disabled = false;
+        sfx.ding();
+      }
+    }, 120);
+  });
+  win.onClose = () => clearInterval(timer);
+}
+
+// ============================================================ WEATHER
+function openWeather() {
+  const win = shell('weather', 'Weather', '⛅', { x: 320, y: 100, w: 340, h: 320 });
+  if (!win) return;
+  win.body.classList.add('sunken');
+  const render = async (lat, lon, label) => {
+    win.body.innerHTML = `<p class="muted">📡 Contacting the sky over ${label}…</p>`;
+    try {
+      const d = await weatherAt(lat, lon);
+      const cur = d.current_weather;
+      const desc = WMO_CODES[cur.weathercode] ?? `code ${cur.weathercode}`;
+      win.body.innerHTML = `
+        <h3 style="margin-top:0">${label}</h3>
+        <p style="font-size:30px;margin:4px 0">${desc.split(' ')[0]} ${Math.round(cur.temperature)}°C</p>
+        <p>${desc.slice(desc.indexOf(' ') + 1)} · wind ${Math.round(cur.windspeed)} km/h</p>
+        <p class="muted">Next days: ${d.daily.temperature_2m_min.slice(0, 4).map((mn, i) =>
+          `${Math.round(mn)}–${Math.round(d.daily.temperature_2m_max[i])}°`).join(' · ')}</p>
+        <p class="muted" style="font-size:11px">Live from open-meteo via Datalink.</p>`;
+    } catch (e) {
+      win.body.innerHTML = `<p>Datalink error: ${String(e.message).replace(/</g, '&lt;')}</p>`;
+    }
+  };
+  win.body.innerHTML = '<p class="muted">Where are you?</p>';
+  navigator.geolocation?.getCurrentPosition(
+    (pos) => render(pos.coords.latitude, pos.coords.longitude, 'Your location'),
+    () => render(52.52, 13.4, 'Berlin (location denied — showing a classic)'),
+    { timeout: 6000 });
+  setTimeout(() => { if (win.body.textContent === 'Where are you?') render(52.52, 13.4, 'Berlin (no answer — showing a classic)'); }, 7000);
+}
+
+// ============================================================ STOPWATCH
+function openStopwatch() {
+  const win = shell('stopwatch', 'Stopwatch', '⏱️', { x: 350, y: 190, w: 260, h: 240, resizable: false });
+  if (!win) return;
+  win.body.innerHTML = `<div class="app-col" style="align-items:center;gap:8px">
+    <div class="sw-display">00:00.0</div>
+    <div class="app-toolbar"><button class="btn sw-start">Start</button><button class="btn sw-lap">Lap</button><button class="btn sw-reset">Reset</button></div>
+    <div class="sw-laps muted"></div></div>`;
+  const disp = $('.sw-display', win.body), laps = $('.sw-laps', win.body);
+  let t0 = 0, acc = 0, timer = null;
+  const fmt = (ms) => `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${Math.floor(ms / 100) % 10}`;
+  const tick = () => { disp.textContent = fmt(acc + (timer ? performance.now() - t0 : 0)); };
+  $('.sw-start', win.body).addEventListener('click', (e) => {
+    if (timer) { acc += performance.now() - t0; clearInterval(timer); timer = null; e.target.textContent = 'Start'; }
+    else { t0 = performance.now(); timer = setInterval(tick, 100); e.target.textContent = 'Stop'; }
+    sfx.click();
+  });
+  $('.sw-lap', win.body).addEventListener('click', () => { laps.prepend(el(`<div>◦ ${disp.textContent}</div>`)); sfx.menu(); });
+  $('.sw-reset', win.body).addEventListener('click', () => { acc = 0; t0 = performance.now(); laps.innerHTML = ''; tick(); sfx.click(); });
+  win.onClose = () => clearInterval(timer);
+}
+
+// ============================================================ STICKY NOTES
+function spawnSticky(data, persistAll) {
+  const s = el(`<div class="sticky" style="left:${data.x}px;top:${data.y}px">
+    <div class="sticky-bar"><span class="sticky-x" title="Delete">×</span></div>
+    <div class="sticky-text" contenteditable="true" spellcheck="false"></div></div>`);
+  s.querySelector('.sticky-text').textContent = data.text;
+  document.getElementById('desktop').appendChild(s);
+  const save = () => { data.text = s.querySelector('.sticky-text').textContent; data.x = parseFloat(s.style.left); data.y = parseFloat(s.style.top); persistAll(); };
+  s.querySelector('.sticky-text').addEventListener('input', save);
+  s.querySelector('.sticky-x').addEventListener('click', () => { data.dead = true; s.remove(); persistAll(); sfx.close(); });
+  const bar = s.querySelector('.sticky-bar');
+  let sx, sy, ox, oy, drag = false;
+  bar.addEventListener('pointerdown', (e) => { drag = true; sx = e.clientX; sy = e.clientY; ox = parseFloat(s.style.left); oy = parseFloat(s.style.top); try { bar.setPointerCapture(e.pointerId); } catch {} });
+  bar.addEventListener('pointermove', (e) => { if (drag) { s.style.left = ox + e.clientX - sx + 'px'; s.style.top = oy + e.clientY - sy + 'px'; } });
+  bar.addEventListener('pointerup', () => { drag = false; save(); });
+  return s;
+}
+
+function openStickies() {
+  const all = store.get('stickies', []);
+  const persistAll = () => store.set('stickies', all.filter(d => !d.dead));
+  const fresh = { x: 120 + Math.random() * 200, y: 90 + Math.random() * 160, text: 'new note' };
+  all.push(fresh);
+  spawnSticky(fresh, persistAll);
+  persistAll();
+  sfx.open();
+}
+
+export function restoreStickies() {
+  const all = store.get('stickies', []);
+  const persistAll = () => store.set('stickies', all.filter(d => !d.dead));
+  all.forEach(d => spawnSticky(d, persistAll));
+}
+
+// ============================================================ FILE EXPLORER
+function openExplorer(ctx) {
+  const win = shell('explorer', 'C:\\ - File Explorer', '📂', { x: 130, y: 90, w: 460, h: 360 });
+  if (!win) return;
+  const TREE = {
+    'C:\\BOWMAN\\EXHIBITS': PROJECTS.map(p => ({ ico: p.icon, name: p.name + '.exhibit', act: () => { ctx.openViewer?.(); window.BOWMAN?.showroom?.setProject(PROJECTS.indexOf(p)); } })),
+    'C:\\BOWMAN\\CHARACTERS': [
+      { ico: '🐕', name: 'AWD.fbx (4.9 MB)' },
+      { ico: '🎖️', name: 'FORCOMMANDER17.fbx (36 MB)' },
+      { ico: '😎', name: 'weekend21.fbx (36 MB)' },
+    ],
+    'C:\\BOWMAN\\MUSIC': [{ ico: '🎵', name: 'ode-to-sadness.mid', act: () => { beat.start(); } }],
+    'C:\\WINDOWS\\SYSTEM32': [
+      { ico: '⚠️', name: 'do_not_delete.dll' },
+      { ico: '🫥', name: 'definitely_important.vxd' },
+      { ico: '🧠', name: 'brain.exe', act: () => ctx.allApps().find(a => a.id === 'chat')?.open() },
+    ],
+  };
+  win.body.innerHTML = `<div class="exp-split">
+    <div class="exp-tree">${Object.keys(TREE).map(k => `<div class="exp-dir" data-k="${k}">📁 ${k}</div>`).join('')}</div>
+    <div class="exp-files sunken"><p class="muted" style="padding:8px">Pick a folder.</p></div></div>`;
+  const files = $('.exp-files', win.body);
+  win.body.querySelectorAll('.exp-dir').forEach(d => d.addEventListener('click', () => {
+    win.body.querySelectorAll('.exp-dir').forEach(x => x.classList.remove('sel'));
+    d.classList.add('sel');
+    files.innerHTML = '';
+    for (const f of TREE[d.dataset.k]) {
+      const row = el(`<div class="s-row"><span class="s-ico">${f.ico}</span><span>${f.name}</span></div>`);
+      if (f.act) row.addEventListener('click', () => { f.act(); sfx.open(); });
+      files.appendChild(row);
+    }
+    sfx.click();
+  }));
+}
+
+// ============================================================ VOLUME MIXER
+function openMixer() {
+  const win = shell('mixer', 'Volume Mixer', '🔊', { x: 340, y: 140, w: 300, h: 260, resizable: false });
+  if (!win) return;
+  const m = { ...getMixer(), ...store.get('mixer', {}) };
+  setMixer(m);
+  win.body.innerHTML = `<div class="app-col" style="gap:10px;padding:12px">${[
+    ['sfx', '🔔 Effects'], ['vox', '🗣️ Guide voice'], ['music', '🎵 Music'],
+  ].map(([k, label]) => `
+    <label class="mix-row">${label}
+      <input type="range" class="mix" data-k="${k}" min="0" max="100" value="${Math.round((m[k] ?? 0.8) * 100)}">
+    </label>`).join('')}
+    <p class="muted" style="font-size:11px">Levels persist between visits.</p></div>`;
+  win.body.querySelectorAll('.mix').forEach(r => r.addEventListener('input', () => {
+    setMixer({ [r.dataset.k]: r.value / 100 });
+    if (r.dataset.k === 'sfx') sfx.click();
+  }));
+}
+
+// ============================================================ TYPING TEST
+function openTyping() {
+  const win = shell('typing', 'Typing Test', '⌨️', { x: 150, y: 130, w: 470, h: 300 });
+  if (!win) return;
+  const LINES = [
+    'The quick African wild dog jumps over the lazy firewall.',
+    'Bowman megatrends synergize vertically integrated nostalgia.',
+    'It is now safe to turn off your computer, but why would you?',
+    'Painted wolves hunt in packs of retro operating systems.',
+  ];
+  let target = '', t0 = 0;
+  win.body.innerHTML = `<div class="app-col" style="gap:8px;padding:8px">
+    <div class="type-target sunken"></div>
+    <input class="field type-in" placeholder="type the line above, then Enter" spellcheck="false" autocomplete="off">
+    <div class="type-result muted"></div>
+    <button class="btn type-new">New line</button></div>`;
+  const targetEl = $('.type-target', win.body), input = $('.type-in', win.body), result = $('.type-result', win.body);
+  const newLine = () => {
+    target = LINES[Math.floor(Math.random() * LINES.length)];
+    targetEl.textContent = target;
+    input.value = ''; t0 = 0;
+    input.focus();
+  };
+  input.addEventListener('input', () => { if (!t0) t0 = performance.now(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !t0) return;
+    const mins = (performance.now() - t0) / 60000;
+    const typed = input.value;
+    const wpm = Math.round((typed.length / 5) / mins);
+    let ok = 0;
+    for (let i = 0; i < Math.min(typed.length, target.length); i++) if (typed[i] === target[i]) ok++;
+    const acc = Math.round(ok / target.length * 100);
+    result.textContent = `${wpm} WPM at ${acc}% accuracy — ${acc > 95 && wpm > 60 ? 'certified keyboard athlete 🏆' : acc > 90 ? 'solid!' : 'the keys fought back.'}`;
+    (acc > 90 ? sfx.ding : sfx.error)();
+    newLine();
+  });
+  $('.type-new', win.body).addEventListener('click', () => { newLine(); sfx.click(); });
+  newLine();
 }
 
 // ============================================================ registry
@@ -901,6 +1480,22 @@ export function buildApps(ctx) {
     { id: 'taskman', icon: '📊', label: 'Task Manager', menu: 'right', open: openTaskman },
     { id: 'display', icon: '🖥️', label: 'Display Properties', menu: 'right', open: () => openDisplay(ctx) },
     { id: 'saver', icon: '🌌', label: 'Screensaver', menu: 'left', open: openScreensaver },
+    // ---- wave 2 ----
+    { id: 'visualizer', icon: '🎚️', label: 'Visualizer', menu: 'left', open: openVisualizer },
+    { id: 'charmap', icon: '🔣', label: 'Character Map', menu: 'right', open: openCharmap },
+    { id: 'piano', icon: '🎹', label: 'Piano', menu: 'left', open: openPiano },
+    { id: 'pong', icon: '🏓', label: 'Pong', menu: 'left', open: openPong },
+    { id: 'breakout', icon: '🧱', label: 'Breakout', menu: 'left', open: openBreakout },
+    { id: 'memory', icon: '🃏', label: 'Memory Match', menu: 'left', open: openMemory },
+    { id: 'winver', icon: '🪟', label: 'About Windows', menu: 'right', open: openWinver },
+    { id: 'defrag', icon: '🧩', label: 'Disk Defragmenter', menu: 'right', open: openDefrag },
+    { id: 'dialup', icon: '☎️', label: 'Dial-Up Networking', menu: 'right', open: openDialup },
+    { id: 'weather', icon: '⛅', label: 'Weather', menu: 'right', open: openWeather },
+    { id: 'stopwatch', icon: '⏱️', label: 'Stopwatch', menu: 'right', open: openStopwatch },
+    { id: 'stickies', icon: '🟨', label: 'Sticky Notes', menu: 'left', open: openStickies },
+    { id: 'explorer', icon: '📂', label: 'File Explorer', menu: 'right', open: () => openExplorer(ctx) },
+    { id: 'mixer', icon: '🔊', label: 'Volume Mixer', menu: 'right', open: openMixer },
+    { id: 'typing', icon: '⌨️', label: 'Typing Test', menu: 'left', open: openTyping },
   ];
   return apps;
 }

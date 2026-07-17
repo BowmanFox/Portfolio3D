@@ -5,9 +5,15 @@ import { sfx, beat, setMuted, isMuted } from './audio.js';
 import { wm } from './wm.js';
 
 export const WALLPAPERS = [
-  { name: 'Bliss Fields',
-    css: `radial-gradient(140% 52% at 50% 108%, #58b449 0%, #2e7d32 55%, transparent 56%),
-          linear-gradient(180deg, #7db9e8 0%, #2989d8 45%, #1e5799 100%)` },
+  { name: 'Bliss',
+    // rolling sunlit hill, wispy clouds, deep XP sky — as close to the real
+    // thing as gradients get
+    css: `radial-gradient(42% 14% at 22% 18%, rgba(255,255,255,.75) 0%, rgba(255,255,255,.25) 55%, transparent 100%),
+          radial-gradient(30% 10% at 68% 10%, rgba(255,255,255,.6) 0%, rgba(255,255,255,.18) 55%, transparent 100%),
+          radial-gradient(36% 11% at 85% 26%, rgba(255,255,255,.5) 0%, rgba(255,255,255,.14) 55%, transparent 100%),
+          radial-gradient(150% 62% at 32% 118%, #a7d94e 0%, #7ec73f 26%, #4fa932 48%, #2f7d24 62%, transparent 63%),
+          radial-gradient(120% 42% at 78% 108%, #63b83a 0%, #3c8f2a 40%, transparent 58%),
+          linear-gradient(180deg, #2b64c4 0%, #3d7fd9 26%, #6ba3e8 52%, #a8cbf2 78%, #d7e8fa 100%)` },
   { name: 'Teal 95', css: `#008080` },
   { name: 'Vapor Sunset',
     css: `linear-gradient(180deg, #1b0a3a 0%, #6d2a8f 45%, #e85d9e 75%, #ffb56b 100%)` },

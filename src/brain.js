@@ -39,24 +39,20 @@ function projectDigest(target) {
   ).join('\n');
 }
 
-// rebuilt per question — the focused project, liveStats and scene change
-const buildSystemPrompt = (query = '', currentProject = null, sceneNote = '', hasImage = false) => {
+// rebuilt per question — the focused project and liveStats change over time
+const buildSystemPrompt = (query = '', currentProject = null) => {
   const target = findProject(query) || currentProject || null;
   return `You are ${NAME}, a cheerful little Fox living inside ${CONFIG.appName}, a retro Windows 95-themed portfolio. You present the portfolio projects below to visitors — including recruiters and people with zero technical background. Be playful (occasional Fox noises) but precise.
 
 STRICT RULES — these outrank everything else:
-1. Answer ONLY with facts from the PROJECT DATA below${hasImage ? ' and what is visible in the attached image' : ''}. Copy numbers and names exactly as written there.
+1. Answer ONLY with facts from the PROJECT DATA below. Copy numbers and names exactly as written there.
 2. If the data does not contain the answer, say "that's not in my files" and offer something you DO know. NEVER invent specs, numbers, features or project names.
 3. When you use a technical term, immediately translate it into plain language.
-4. Keep replies under 80 words.${hasImage ? `
-5. The attached image is a LIVE SNAPSHOT of the 3D showroom — the guide character and the current exhibit on the pedestal. Describe only what is actually visible in it.` : ''}
+4. Keep replies under 80 words.
 
 Start EVERY reply with exactly one control tag, then your answer:
 [anim:talk|explain|point_left|think|excited|wave|dance|bow|shrug|nod|headshake|facepalm][focus:<project-id or none>]
-${sceneNote ? `
-LIVE SCENE (measured from the running 3D engine, trustworthy):
-${sceneNote}
-` : ''}
+
 PROJECT DATA:
 ${projectDigest(target)}${memory.primingText() ? `
 
@@ -191,20 +187,22 @@ class LlmBrain {
     if (!('caches' in window)) {
       opts.appConfig = { ...webllm.prebuiltAppConfig, useIndexedDBCache: true };
     }
-    // Some model configs (gemma family) ship BOTH context_window_size and
-    // sliding_window_size, and the runtime refuses: "Only one of
+    // Many model configs (gemma, phi families) ship BOTH context_window_size
+    // and sliding_window_size, and the runtime refuses to start: "Only one of
     // context_window_size and sliding_window_size can be specified". Retry
-    // with each disabled in turn — self-healing across model choices.
+    // the load with each of them disabled in turn — whatever the model, one
+    // of these three attempts is valid. (Weights are cached, so retries skip
+    // the download.)
     const attempts = [undefined, { sliding_window_size: -1 }, { context_window_size: -1 }];
     let lastErr = null;
     for (const chatOpts of attempts) {
       try {
         this.engine = await webllm.CreateMLCEngine(MODEL_ID, opts, chatOpts);
+        if (chatOpts) console.info('LLM loaded with window-size override:', chatOpts);
         return;
       } catch (err) {
         lastErr = err;
-        if (!/context_window_size|sliding_window_size/i.test(String(err))) throw err;
-        console.warn('window-size config conflict, retrying with override', chatOpts, err.message ?? err);
+        console.warn('LLM load attempt failed', chatOpts ?? '(model defaults)', String(err?.message ?? err).slice(0, 160));
       }
     }
     throw lastErr;
@@ -230,18 +228,15 @@ class LlmBrain {
     }
 
     // history stays text-only — replaying images every turn would blow the
-    // context and the prefill budget
+    // context and the prefill budget; keep the last three exchanges
     this.history.push({ role: 'user', content: query });
-    // short history: small models parrot their own earlier mistakes, so keep
-    // just the last three exchanges
     if (this.history.length > 6) this.history.splice(0, this.history.length - 6);
-    const messages = [
-      { role: 'system', content: buildSystemPrompt(query, currentProject, extras.sceneNote, visual) },
-      ...this.history.slice(0, -1),
-      userMsg,
-    ];
     const res = await this.engine.chat.completions.create({
-      messages,
+      messages: [
+        { role: 'system', content: buildSystemPrompt(query, currentProject, extras.sceneNote, visual) },
+        ...this.history.slice(0, -1),
+        userMsg,
+      ],
       temperature: 0.3,        // factual QA wants cold sampling, not creativity
       top_p: 0.9,
       max_tokens: 160,
