@@ -154,6 +154,9 @@ html, body {
 }
 
 /* ---------- menus ---------- */
+/* the hidden attribute must always win, even over .menu.start's display:flex
+   — otherwise "closing" the start menu only sets an attribute it ignores */
+.menu[hidden] { display: none !important; }
 .menu {
   position: fixed;
   z-index: 9000;

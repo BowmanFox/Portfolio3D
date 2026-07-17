@@ -156,6 +156,7 @@ html, body {
 }
 
 /* ---------- menus (XP: white, thin border, blue hover) ---------- */
+.menu[hidden] { display: none !important; }
 .menu {
   position: fixed;
   z-index: 9000;
