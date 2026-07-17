@@ -30,7 +30,7 @@ export class Desktop {
     this.ctxEl = document.getElementById('ctx-menu');
     this.startEl = document.getElementById('start-menu');
 
-    this.applyWallpaper(store.get('wallpaper', 1));   // default: Teal 95
+    this.applyWallpaper(store.get('wallpaper', 0));   // default: Bliss (XP)
     this.renderIcons();
     this._wireContextMenu();
     this._wireStartMenu();
@@ -197,36 +197,68 @@ export class Desktop {
   }
 
   // ------------------------------------------------------------ start menu
+  // XP-style: user banner up top, two columns (white programs pane, blue
+  // places pane), Log Off / Turn Off strip at the bottom.
   _wireStartMenu() {
     const btn = document.getElementById('start-btn');
     // ANY click inside the start menu closes it — item handlers run first
-    // (bubble order), so actions still fire; clicks on the side strip,
-    // separators or padding no longer leave it hanging open
+    // (bubble order), so actions still fire; clicks on the banner, padding
+    // or separators no longer leave it hanging open
     this.startEl.addEventListener('click', () => this.hideMenus());
     btn.addEventListener('click', () => {
       if (!this.startEl.hidden) { this.hideMenus(); return; }
       const m = this.startEl;
-      m.innerHTML = `<div class="side">BOWMAN 95</div><div class="items"></div>`;
-      const items = m.querySelector('.items');
-      const add = (ico, label, act) => {
-        const el = document.createElement('div');
-        el.className = 'mi';
-        el.innerHTML = `<span class="mi-ico">${ico}</span>${label}`;
-        el.addEventListener('click', () => { this.hideMenus(); act(); });
-        items.appendChild(el);
+      m.classList.add('xp');
+      m.innerHTML = `
+        <div class="xp-banner"><span class="xp-avatar">🦊</span><span>Bowman</span></div>
+        <div class="xp-cols">
+          <div class="xp-left"></div>
+          <div class="xp-right"></div>
+        </div>
+        <div class="xp-footer">
+          <div class="mi xp-off" data-act="logoff"><span class="mi-ico">🔑</span>Log Off</div>
+          <div class="mi xp-off" data-act="shutdown"><span class="mi-ico">⭘</span>Turn Off Computer</div>
+        </div>`;
+      const add = (host, ico, label, act, cls = '') => {
+        const it = document.createElement('div');
+        it.className = 'mi ' + cls;
+        it.innerHTML = `<span class="mi-ico">${ico}</span>${label}`;
+        it.addEventListener('click', () => { this.hideMenus(); act(); });
+        host.appendChild(it);
       };
-      for (const d of this.iconsDef) add(d.icon, d.label, () => { sfx.open(); d.open(); });
-      items.appendChild(Object.assign(document.createElement('div'), { className: 'msep' }));
-      add('🔄', 'Refresh Desktop', () => this.refresh());
-      add('▦', 'Auto-Arrange Icons', () => this.autoArrange());
-      add('🗕', 'Minimize All', () => wm.minimizeAll());
-      add('🖼️', 'Change Wallpaper', () => this.nextWallpaper());
+      const left = m.querySelector('.xp-left');
+      const right = m.querySelector('.xp-right');
+      for (const d of this.iconsDef.filter(d => (d.menu ?? 'left') === 'left')) {
+        add(left, d.icon, d.label, () => { sfx.open(); d.open(); });
+      }
+      for (const d of this.iconsDef.filter(d => d.menu === 'right')) {
+        add(right, d.icon, d.label, () => { sfx.open(); d.open(); }, 'xp-place');
+      }
+      right.appendChild(Object.assign(document.createElement('div'), { className: 'msep' }));
+      add(right, '🔄', 'Refresh Desktop', () => this.refresh(), 'xp-place');
+      add(right, '▦', 'Auto-Arrange Icons', () => this.autoArrange(), 'xp-place');
+      add(right, '🗕', 'Minimize All', () => wm.minimizeAll(), 'xp-place');
+      m.querySelectorAll('.xp-off').forEach(o => o.addEventListener('click', () => {
+        this.hideMenus();
+        o.dataset.act === 'shutdown' ? this._shutdown() : location.reload();
+      }));
       m.hidden = false;
       const r = m.getBoundingClientRect();
       m.style.left = '2px';
       m.style.top = (window.innerHeight - r.height - (window.innerWidth < 700 ? 48 : 42)) + 'px';
       sfx.menu();
     });
+  }
+
+  /** The full XP goodbye: CRT collapse, then the classic orange sign-off. */
+  _shutdown() {
+    sfx.close();
+    const ov = document.createElement('div');
+    ov.id = 'shutdown';
+    ov.innerHTML = '<p>It is now safe to turn off<br>your computer.</p><p class="sd-hint">(click anywhere to turn it back on)</p>';
+    document.body.appendChild(ov);
+    ov.addEventListener('pointerdown', () => location.reload());
+    window.addEventListener('keydown', () => location.reload(), { once: true });
   }
 
   // ------------------------------------------------------------ tray

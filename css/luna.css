@@ -362,3 +362,37 @@ legend { padding: 0 4px; color: #0046d5; }
   .win-title .t-btns .btn { width: 34px; height: 30px; min-height: 30px; }
   #taskbar { height: 46px; }
 }
+
+/* ---------- XP start menu skin ---------- */
+.menu.start.xp {
+  border: 1px solid #0d3a9e;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  box-shadow: 3px -2px 12px rgba(0, 20, 90, .4);
+}
+.menu.start.xp .side { display: none; }
+.xp-banner {
+  background: linear-gradient(180deg, #2a80ff 0%, #1262e8 20%, #0855dd 55%, #073dad 100%);
+  text-shadow: 1px 1px 2px rgba(0, 0, 60, .8);
+}
+.xp-cols { border-top: 2px solid #f59d35; }
+.xp-right { background: #d3e5fa; border-left: 1px solid #96b9e0; }
+.xp-right .mi.xp-place { color: #0a246a; font-weight: bold; font-size: 12px; }
+.xp-right .mi:hover { background: var(--sel); color: #fff; }
+.xp-footer {
+  background: linear-gradient(180deg, #4282d6 0%, #2861b0 100%);
+  border-top: 1px solid #1c4a94;
+}
+.xp-footer .mi { text-shadow: 0 1px 1px rgba(0,0,40,.6); font-size: 12px; }
+.xp-footer .mi:hover { background: rgba(255,255,255,.18); border-radius: 3px; }
+
+/* the "feel": menus ease in like Luna's */
+.menu { animation: menu-in .13s ease-out; transform-origin: bottom left; }
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+#ctx-menu { transform-origin: top left; }
+
+/* balloon-ish tooltip for the toast */
+#toast { border-radius: 6px; box-shadow: 2px 3px 8px rgba(0,0,0,.35); }

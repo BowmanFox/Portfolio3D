@@ -354,3 +354,15 @@ legend { padding: 0 4px; color: #000; }
   .win-title .t-btns .btn { width: 34px; height: 30px; min-height: 30px; }
   #taskbar { height: 46px; }
 }
+
+/* ---------- XP-structured start menu, classic skin ---------- */
+.menu.start.xp { flex-direction: column; padding: 3px; }
+.xp-banner {
+  display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(90deg, var(--title-a), var(--title-b));
+  color: #fff; font-weight: bold; padding: 6px 10px;
+}
+.xp-avatar { font-size: 20px; }
+.xp-right { background: var(--face-light); border-left: 1px solid var(--shadow); }
+.xp-footer { background: var(--face); border-top: 1px solid var(--shadow); }
+.xp-footer .mi { color: #000; }

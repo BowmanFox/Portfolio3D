@@ -22,6 +22,8 @@ export function initShortcuts(actions) {
   window.addEventListener('keydown', (e) => {
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey) return;
+    // games (Snake, Minesweeper…) own the keyboard while focused
+    if (document.querySelector('.win.focused[data-trapkeys]')) return;
 
     const k = e.key.toLowerCase();
     const fire = (fn) => { e.preventDefault(); fn?.(); };

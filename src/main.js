@@ -13,6 +13,7 @@ import { sfx, beat, setMuted, isMuted, setMusicVolume } from './audio.js';
 import { store } from './store.js';
 import { registerTextureOverrides } from './fbxload.js';
 import { memory } from './memory.js';
+import { buildApps } from './apps.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const el = (html) => {
@@ -566,25 +567,35 @@ function openAbout() {
   return win;
 }
 
+// theme switching: Luna XP (default) ↔ Windows Classic 95, applied live
+function setTheme(t) {
+  store.set('theme', t);
+  const link = document.getElementById('theme-css');
+  if (link) link.href = t === '95' ? 'css/win9x.css' : 'css/luna.css';
+}
+
 // ============================================================ BOOT IT ALL
 async function start() {
   brain = new Brain();
+  setTheme(store.get('theme', 'xp'));
   await memory.init();        // decrypts visitor memory if consent was given
 
   await runBoot();
   document.getElementById('os').hidden = false;
 
-  desktop = new Desktop({
-    onAbout: openAbout,
-    icons: [
-      { id: 'viewer', icon: '🖥️', label: 'Character Viewer', open: openViewer },
-      { id: 'chat', icon: '🐶', label: `${CONFIG.guideName} Terminal`, open: openChat },
-      { id: 'projects', icon: '📁', label: 'My Projects', open: openProjects },
-      { id: 'player', icon: '🎵', label: 'RobAmp', open: openPlayer },
-      { id: 'help', icon: '❓', label: 'Help', open: openHelp },
-      { id: 'settings', icon: '⚙️', label: 'Settings', open: openSettings },
-    ],
-  });
+  const baseIcons = [
+    { id: 'viewer', icon: '🖥️', label: 'Character Viewer', menu: 'left', open: openViewer },
+    { id: 'chat', icon: '🐶', label: `${CONFIG.guideName} Terminal`, menu: 'left', open: openChat },
+    { id: 'projects', icon: '📁', label: 'My Projects', menu: 'right', open: openProjects },
+    { id: 'player', icon: '🎵', label: 'RobAmp', menu: 'left', open: openPlayer },
+    { id: 'help', icon: '❓', label: 'Help', menu: 'right', open: openHelp },
+    { id: 'settings', icon: '⚙️', label: 'Settings', menu: 'right', open: openSettings },
+  ];
+  const ctx = { desktop: null, setTheme, openViewer, allApps: () => allIcons };
+  const allIcons = [...baseIcons, ...buildApps(ctx)];
+
+  desktop = new Desktop({ onAbout: openAbout, icons: allIcons });
+  ctx.desktop = desktop;
 
   initShortcuts({
     help: openHelp,
@@ -631,6 +642,7 @@ window.BOWMAN = {
   get showroom() { return showroom; },
   get brain() { return brain; },
   get desktop() { return desktop; },
+  setTheme,
 };
 
 start().catch(err => {
