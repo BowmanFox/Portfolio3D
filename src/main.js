@@ -13,7 +13,7 @@ import { sfx, beat, setMuted, isMuted, setMusicVolume } from './audio.js';
 import { store } from './store.js';
 import { registerTextureOverrides } from './fbxload.js';
 import { memory } from './memory.js';
-import { buildApps } from './apps.js';
+import { buildApps, restoreStickies } from './apps.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const el = (html) => {
@@ -253,7 +253,11 @@ function openChat() {
       showroom?.character.setState('think', { hold: 30 });
     }
     try {
-      const reply = await brain.ask(text, showroom?.project);
+      const reply = await brain.ask(text, showroom?.project, {
+        // computer vision: the LLM can request a live snapshot of the scene
+        getSnapshot: () => showroom?.captureSnapshot?.(),
+        sceneNote: showroom?.ready ? showroom.describeVisible?.() ?? '' : '',
+      });
       if (chatLogEl?.lastElementChild?.classList.contains('sys')) chatLogEl.lastElementChild.remove();
       chatPrint('bot', reply.text);
       if (reply.projectId && showroom?.ready) {
@@ -592,6 +596,7 @@ async function start() {
 
   desktop = new Desktop({ onAbout: openAbout, icons: allIcons });
   ctx.desktop = desktop;
+  restoreStickies();
 
   initShortcuts({
     help: openHelp,

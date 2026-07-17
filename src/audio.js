@@ -191,7 +191,7 @@ function parseMidi(buf) {
 
 // soft felt-piano voice: triangle body + quiet octave partial, velocity-keyed
 // lowpass, fast attack into a long exponential decay
-function pianoNote(note, vel, at, dur, { gain = 1, detune = 0 } = {}) {
+export function pianoNote(note, vel, at, dur, { gain = 1, detune = 0 } = {}) {
   if (!ensureCtx()) return;
   const t0 = ctx.currentTime + at;
   const f = 440 * Math.pow(2, (note - 69) / 12);
@@ -316,3 +316,48 @@ export function setMuted(m) {
 }
 export function isMuted() { return muted; }
 export function setMusicVolume(v) { if (ensureCtx()) musicBus.gain.value = v; }
+
+// spectrum tap on the music bus, for the Visualizer app
+let analyser = null;
+export function getAnalyser() {
+  if (!ensureCtx()) return null;
+  if (!analyser) {
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.78;
+    musicBus.connect(analyser);          // parallel tap, doesn't affect output
+  }
+  return analyser;
+}
+
+// per-bus volume mixer (persisted)
+export function setMixer({ sfx: s, vox: v, music: m } = {}) {
+  if (!ensureCtx()) return;
+  if (s != null) sfxBus.gain.value = s;
+  if (v != null) voxBus.gain.value = v;
+  if (m != null) musicBus.gain.value = m;
+  store.set('mixer', { sfx: sfxBus.gain.value, vox: voxBus.gain.value, music: musicBus.gain.value });
+}
+export function getMixer() {
+  if (!ensureCtx()) return { sfx: 0.9, vox: 0.85, music: 0.55 };
+  return { sfx: sfxBus.gain.value, vox: voxBus.gain.value, music: musicBus.gain.value };
+}
+
+// the full 56k handshake experience, synthesized (~5 s); returns duration
+export function modemDial() {
+  if (!ensureCtx()) return 0;
+  // DTMF-ish dialing
+  [0.0, 0.14, 0.28, 0.42, 0.58, 0.72, 0.9].forEach((at, i) => {
+    blip(sfxBus, { freq: 697 + (i % 4) * 120, type: 'sine', dur: 0.09, vol: 0.14, at });
+    blip(sfxBus, { freq: 1209 + (i % 3) * 130, type: 'sine', dur: 0.09, vol: 0.14, at });
+  });
+  // carrier tones + answer
+  blip(sfxBus, { freq: 2100, type: 'sine', dur: 0.7, vol: 0.12, at: 1.2 });
+  blip(sfxBus, { freq: 1300, type: 'sine', dur: 0.5, vol: 0.12, at: 2.0, slide: 500 });
+  blip(sfxBus, { freq: 980, type: 'square', dur: 0.4, vol: 0.07, at: 2.5, slide: -300 });
+  // the screechy training noise
+  noiseBurst(sfxBus, { dur: 1.6, vol: 0.1, at: 3.0, lp: 4200, hp: 900 });
+  blip(sfxBus, { freq: 1750, type: 'sawtooth', dur: 1.4, vol: 0.05, at: 3.1, slide: -700, lp: 5000 });
+  noiseBurst(sfxBus, { dur: 0.8, vol: 0.05, at: 4.6, lp: 2400, hp: 300 });
+  return 5.4;
+}

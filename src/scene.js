@@ -11,6 +11,39 @@ import { loadFBXSafe, computeModelStats, pruneMorphs } from './fbxload.js';
 import { sfx } from './audio.js';
 import { store } from './store.js';
 
+/** Extended color naming: r,g,b (0-255) → a human color word. */
+function nameColor(r, g, b) {
+  const mx = Math.max(r, g, b) / 255, mn = Math.min(r, g, b) / 255;
+  const l = (mx + mn) / 2;
+  const d = mx - mn;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d > 0) {
+    const R = r / 255, G = g / 255, B = b / 255;
+    if (mx === R) h = ((G - B) / d) % 6;
+    else if (mx === G) h = (B - R) / d + 2;
+    else h = (R - G) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  if (l > 0.93) return 'white';
+  if (l < 0.08) return 'black';
+  if (s < 0.13) return l > 0.6 ? 'light gray' : 'dark gray';
+  if (h >= 18 && h < 48) {
+    if (l < 0.35) return 'brown';
+    if (l < 0.62 && s < 0.6) return 'tan';
+    return 'orange';
+  }
+  if (h < 15 || h >= 345) return l > 0.72 ? 'pink' : 'red';
+  if (h < 68) return l < 0.42 ? 'olive' : 'yellow';
+  if (h < 95) return l < 0.4 ? 'olive' : 'lime green';
+  if (h < 160) return 'green';
+  if (h < 190) return 'teal';
+  if (h < 210) return l > 0.6 ? 'sky blue' : 'cyan';
+  if (h < 258) return l > 0.68 ? 'sky blue' : 'blue';
+  if (h < 295) return 'purple';
+  return l > 0.7 ? 'pink' : 'magenta';
+}
+
 function checkerTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -173,6 +206,64 @@ export class Showroom {
     store.set('project', this.projIdx);
     if (!silent) sfx.open();
     this.onProjectChange?.(proj, this.projIdx);
+  }
+
+  /**
+   * COLORVISION: sample the actually-rendered frame and histogram it into
+   * named colors. Unlike guessing from material tints, this sees textures,
+   * lighting and everything else a visitor sees. Returns e.g.
+   * "34% sky blue, 22% white, 15% dark gray, 9% tan".
+   */
+  analyzeColors() {
+    try {
+      this.renderer.render(this.scene, this.camera);
+      const src = this.renderer.domElement;
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 48;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(src, 0, 0, 64, 48);
+      const px = g.getImageData(0, 0, 64, 48).data;
+      const counts = new Map();
+      for (let i = 0; i < px.length; i += 4) {
+        const name = nameColor(px[i], px[i + 1], px[i + 2]);
+        counts.set(name, (counts.get(name) || 0) + 1);
+      }
+      const total = px.length / 4;
+      return [...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .filter(([, n]) => n / total > 0.03)
+        .map(([name, n]) => `${Math.round(n / total * 100)}% ${name}`)
+        .join(', ');
+    } catch { return ''; }
+  }
+
+  /**
+   * Plain-text summary of what is visibly in the scene right now — measured
+   * from geometry, materials AND rendered pixels, so even a text-only LLM
+   * can "see" truthfully.
+   */
+  describeVisible() {
+    const tally = (root) => {
+      const counts = new Map();
+      root?.traverse?.((n) => {
+        if (!n.isMesh || !n.visible) return;
+        for (const m of Array.isArray(n.material) ? n.material : [n.material]) {
+          if (!m) continue;
+          const key = m.map?.image ? 'textured/painted'
+            : m.color ? nameColor(m.color.r * 255, m.color.g * 255, m.color.b * 255) : 'unknown';
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+      });
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k]) => k).join(', ');
+    };
+    const s = this.project?.liveStats;
+    const pedestal = `On the pedestal: ${this.project?.name ?? 'nothing'}` +
+      (s ? ` (~${s.triangles.toLocaleString('en-US')} triangles, ${s.meshes} mesh${s.meshes === 1 ? '' : 'es'})` : '') +
+      `; surface finish: ${tally(this.modelGroup) || 'unknown'}.`;
+    const guide = `The guide character stands nearby (surfaces: ${tally(this.character?.usingFBX ? this.character.fbxGroup : this.character?.proceduralGroup) || 'unknown'}).`;
+    const screen = this.analyzeColors();
+    return `${pedestal} ${guide}${screen ? ` Dominant colors on screen right now (measured from rendered pixels): ${screen}.` : ''}`;
   }
 
   /** Re-resolve the current showcase FBX (e.g. after textures were dropped). */

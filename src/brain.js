@@ -174,26 +174,69 @@ class LlmBrain {
     return window.isSecureContext ? 'no-webgpu' : 'insecure-context';
   }
 
+  /** True when the configured model accepts images (Phi-3.5-vision, LLaVA…). */
+  get visionCapable() { return /vision|vlm|llava/i.test(MODEL_ID); }
+
   async load(onProgress) {
     const webllm = await import(/* webpackIgnore: true */ WEBLLM_URL);
     const opts = {
       initProgressCallback: (p) => onProgress?.(p.progress ?? 0, p.text ?? ''),
     };
     // some embeds lack the Cache API — fall back to IndexedDB so the model
-    // still persists between visits instead of redownloading 400 MB
+    // still persists between visits instead of redownloading gigabytes
     if (!('caches' in window)) {
       opts.appConfig = { ...webllm.prebuiltAppConfig, useIndexedDBCache: true };
     }
-    this.engine = await webllm.CreateMLCEngine(MODEL_ID, opts);
+    // Many model configs (gemma, phi families) ship BOTH context_window_size
+    // and sliding_window_size, and the runtime refuses to start: "Only one of
+    // context_window_size and sliding_window_size can be specified". Retry
+    // the load with each of them disabled in turn — whatever the model, one
+    // of these three attempts is valid. (Weights are cached, so retries skip
+    // the download.)
+    const attempts = [undefined, { sliding_window_size: -1 }, { context_window_size: -1 }];
+    let lastErr = null;
+    for (const chatOpts of attempts) {
+      try {
+        this.engine = await webllm.CreateMLCEngine(MODEL_ID, opts, chatOpts);
+        if (chatOpts) console.info('LLM loaded with window-size override:', chatOpts);
+        return;
+      } catch (err) {
+        lastErr = err;
+        console.warn('LLM load attempt failed', chatOpts ?? '(model defaults)', String(err?.message ?? err).slice(0, 160));
+      }
+    }
+    throw lastErr;
   }
 
-  async ask(query, currentProject = null) {
+  async ask(query, currentProject = null, extras = {}) {
+    // COMPUTER VISION: on visually-phrased questions, hand the model a live
+    // snapshot of the showroom so it answers from what is actually there
+    let userMsg = { role: 'user', content: query };
+    const visual = this.visionCapable && extras.getSnapshot &&
+      /look|colou?r|\bsee\b|describe|visual|shape|appear|design|wear|texture|style|cute|pretty|show me/i.test(query);
+    if (visual) {
+      const shot = extras.getSnapshot();
+      if (shot) {
+        userMsg = {
+          role: 'user',
+          content: [
+            { type: 'text', text: query },
+            { type: 'image_url', image_url: { url: shot } },
+          ],
+        };
+      }
+    }
+
+    // history stays text-only — replaying images every turn would blow the
+    // context and the prefill budget; keep the last three exchanges
     this.history.push({ role: 'user', content: query });
-    // short history: small models parrot their own earlier mistakes, so keep
-    // just the last three exchanges
     if (this.history.length > 6) this.history.splice(0, this.history.length - 6);
     const res = await this.engine.chat.completions.create({
-      messages: [{ role: 'system', content: buildSystemPrompt(query, currentProject) }, ...this.history],
+      messages: [
+        { role: 'system', content: buildSystemPrompt(query, currentProject, extras.sceneNote, visual) },
+        ...this.history.slice(0, -1),
+        userMsg,
+      ],
       temperature: 0.3,        // factual QA wants cold sampling, not creativity
       top_p: 0.9,
       max_tokens: 160,
@@ -238,7 +281,7 @@ export class Brain {
   }
 
   /** @returns {Promise<{text, anim, projectId}>} */
-  async ask(query, currentProject) {
+  async ask(query, currentProject, extras = {}) {
     // privacy / identity intents are handled deterministically (rights like
     // erasure must never depend on what an LLM feels like doing)
     if (/forget me|delete my (data|memory)|erase (me|my data)|stop remembering|what do you (know|remember) about me|am i being tracked|my name is|call me/i.test(query)) {
@@ -252,7 +295,7 @@ export class Brain {
       return this.rom.ask(query, currentProject);
     }
     if (this.mode === 'llm') {
-      try { return await this.llm.ask(query, currentProject); }
+      try { return await this.llm.ask(query, currentProject, extras); }
       catch (err) {
         console.warn('LLM failed, falling back to ROM brain', err);
         this.mode = 'rom';
