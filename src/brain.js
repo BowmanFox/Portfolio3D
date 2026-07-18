@@ -60,7 +60,7 @@ const buildSystemPrompt = (query = '', currentProject = null) => {
 
 STRICT RULES — these outrank everything else:
 1. Answer ONLY with facts from the PROJECT DATA below. Copy numbers and names exactly as written there.
-2. If the data does not contain the answer, say "that's not in my files" and offer something you DO know. NEVER invent specs, numbers, features or project names.
+2. If the data does not contain the answer, say offer something you DO know. NEVER invent specs, numbers, features or project names.
 3. When you use a technical term, immediately translate it into plain language.
 4. Keep replies under 80 words.
 
