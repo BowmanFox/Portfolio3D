@@ -207,6 +207,8 @@ function openChat() {
         <span class="led amber"></span>
         <span class="brain-label">BRAIN: ROM (rule-based)</span>
         <button class="btn b-llm" style="min-height:22px;font-size:11px;padding:2px 8px">Install local LLM</button>
+        <button class="btn b-llm-clear" style="min-height:22px;font-size:11px;padding:2px 8px"
+          title="Delete the downloaded model from browser storage (fixes stuck installs; frees gigabytes)">Clear LLM cache</button>
         <div class="progress" hidden><i></i></div>
       </div>
     </div>`;
@@ -319,6 +321,28 @@ function openChat() {
       label.textContent = `LLM failed: ${err.message}`.slice(0, 70);
       sfx.error();
     }
+  });
+
+  // clear cached model artifacts — the fix for wedged/partial downloads and
+  // for reclaiming storage after switching llmModel in config.js
+  const clearBtn = $('.b-llm-clear', win.body);
+  clearBtn.addEventListener('click', async () => {
+    clearBtn.disabled = true;
+    label.textContent = 'Clearing LLM cache…';
+    try {
+      const freed = await brain.clearLLMCache();
+      label.textContent = 'BRAIN: ROM (rule-based)';
+      led.classList.add('amber');
+      prog.hidden = true;
+      if (llmBlocked !== 'no-webgpu') llmBtn.hidden = false;
+      chatPrint('sys', `LLM cache cleared${freed > 1e7 ? ` — freed ${(freed / 1e9).toFixed(2)} GB` : ''}. The model will download fresh on the next install.`);
+      sfx.ding();
+    } catch (err) {
+      label.textContent = 'BRAIN: ROM (rule-based)';
+      chatPrint('sys', `cache clear failed: ${err.message}`);
+      sfx.error();
+    }
+    clearBtn.disabled = false;
   });
 
   win.onClose = () => { chatLogEl = null; };
