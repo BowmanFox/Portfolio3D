@@ -20,5 +20,5 @@ export const CONFIG = {
   // NOTE: requires the WebLLM pin in brain.js to be ≥0.2.80 (gemma3 ids
   // don't exist in older registries).
  // llmModel: 'gemma3-1b-it-q4f16_1-MLC',
-    llmModel: 'gemma3-1b-it-q4f16_1-MLC'',
+    llmModel: 'gemma3-1b-it-q4f16_1-MLC',
 };
