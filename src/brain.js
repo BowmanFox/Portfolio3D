@@ -20,6 +20,20 @@ const NAME = CONFIG.guideName;
 const ANIMS = ['talk', 'explain', 'point_left', 'point_right', 'think', 'excited', 'wave',
                'dance', 'bow', 'shrug', 'nod', 'headshake', 'facepalm'];
 
+/**
+ * Small quantized models sometimes collapse into token loops ("a a a a…").
+ * Catch a reply that is empty, one short token stuttered over and over, or
+ * has almost no vocabulary variety, so it never reaches the visitor.
+ */
+function isDegenerate(text) {
+  const t = (text || '').trim();
+  if (!t) return true;
+  if (/(\S{1,4})(?:\s+\1){5,}/i.test(t)) return true;      // "a a a a a a…"
+  const words = t.toLowerCase().split(/\s+/);
+  if (words.length >= 12 && new Set(words).size / words.length < 0.3) return true;
+  return false;
+}
+
 function fullEntry(p) {
   const live = p.liveStats ? ` Measured from the actual file: ${statsToLines(p.liveStats).join('; ')}.` : '';
   return `${p.name} (id:${p.id}) — ${p.blurb}
