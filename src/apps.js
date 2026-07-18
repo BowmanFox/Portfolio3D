@@ -338,11 +338,14 @@ function openIE(ctx) {
     if (u.startsWith('websearch://')) {
       const q = decodeURIComponent(u.slice('websearch://'.length));
       page.innerHTML = `<p class="muted">🔎 Searching the web for “${escT(q)}”…</p>`;
-      webSearch(q, 8).then((hits) => {
-        page.innerHTML = `<h3>🌐 Web results for “${escT(q)}”</h3>` +
-          (hits.length ? hits.map(h => `<p>▸ <a href="#" data-u="datalink://${encodeURIComponent(h.title)}">${escT(h.title)}</a>${h.desc ? ` — <span class="muted">${escT(h.desc)}</span>` : ''}</p>`).join('')
+      webSearch(q, 8).then(({ provider, results: hits }) => {
+        page.innerHTML = `<h3>🌐 Web results for “${escT(q)}”</h3><p class="muted">via ${escT(provider)}</p>` +
+          (hits.length ? hits.map((h, i) => h.kind === 'wiki'
+              ? `<p>▸ <a href="#" data-u="datalink://${encodeURIComponent(h.title)}">${escT(h.title)}</a>${h.desc ? ` — <span class="muted">${escT(h.desc)}</span>` : ''}</p>`
+              : `<p>▸ <a href="#" data-x="${i}">${escT(h.title)} ↗</a>${h.desc ? ` — <span class="muted">${escT(h.desc)}</span>` : ''}</p>`).join('')
                        : '<p class="muted">Nothing found out there.</p>');
         page.querySelectorAll('a[data-u]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); nav(a.dataset.u); sfx.click(); }));
+        page.querySelectorAll('a[data-x]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); window.open(hits[+a.dataset.x].url, '_blank', 'noopener'); sfx.click(); }));
       }).catch((e) => { page.innerHTML = `<p>Datalink error: ${escT(e.message)}</p>`; });
       return;
     }
@@ -733,12 +736,12 @@ const COMPANIONS = [
     lines: { idle: 'The pack is ready. What are we hunting?', search: '*ears swivel, nose to the ground*', found: 'Tracked it down! *victory yip*', none: 'Trail went cold… try other words?', pet: '*whole-body happy wiggle*' },
   },
   {
-    name: 'Bowman variant 1', species: 'Commander build', fbx: 'src/FORCOMMANDER17 - Copy.fbx',
-    lines: { idle: 'Reporting for search duty.', search: 'Sweeping the sector…', found: 'Target acquired. Outstanding.', none: 'Sector clear. Nothing found.', pet: '*maintains composure… tail betrays him*' },
+    name: 'Bowman variant 1', species: 'Wolf-Hyena', fbx: 'src/FORCOMMANDER17 - Copy.fbx',
+    lines: { idle: 'The pack listens. What do we chase?', search: '*low cackle, nose working the ground*', found: 'Got it! *triumphant whoop*', none: 'Cold trail. Even my cackle went quiet.', pet: '*giggly hyena wheeze, tail going wild*' },
   },
   {
-    name: 'Bowman variant 2', species: 'Weekend build', fbx: 'src/weekend21.fbx',
-    lines: { idle: 'Loose plans, open mind. Whatcha need?', search: '*casually flips through everything*', found: 'Oh nice — here it is.', none: 'Nada. Vibes only today.', pet: '*appreciative slow nod*' },
+    name: 'Bowman variant 2', species: 'Wolf-Hyena', fbx: 'src/weekend21.fbx',
+    lines: { idle: 'Relaxed hunt today. Whatcha need?', search: '*unhurried sniffing, very thorough*', found: 'There it is. Told you.', none: 'Nothing out there. Nap instead?', pet: '*melts into a happy heap*' },
   },
 ];
 
@@ -981,16 +984,23 @@ function openSearch(ctx) {
     const sec = el('<div class="s-websec"><div class="s-webhead">🌐 Datalink — live web results</div><p class="muted" style="padding:2px 8px">dialing…</p></div>');
     results.appendChild(sec);
     try {
-      const hits = await webSearch(q, 5);
+      const { provider, results: hits } = await webSearch(q, 5);
       if (token !== webToken) return;                       // stale query
       sec.querySelector('p')?.remove();
+      sec.querySelector('.s-webhead').textContent = `🌐 Datalink — live results via ${provider}`;
       if (!hits.length) {
         sec.appendChild(el('<p class="muted" style="padding:2px 8px">The web has nothing. Suspicious.</p>'));
         return;
       }
       for (const h of hits) {
-        const row = el(`<div class="s-row"><span class="s-ico">🌐</span><span><b>${esc(h.title)}</b><br><span class="muted">${esc(h.desc || 'Wikipedia article — click to read via Datalink')}</span></span></div>`);
-        row.addEventListener('click', () => { openIEAt(ctx, 'datalink://' + h.title); sfx.open(); });
+        const sub = h.kind === 'wiki' ? (h.desc || 'Wikipedia article — click to read via Datalink')
+                                      : `${h.desc || h.url} — opens in a new tab`;
+        const row = el(`<div class="s-row"><span class="s-ico">🌐</span><span><b>${esc(h.title)}</b><br><span class="muted">${esc(sub)}</span></span></div>`);
+        row.addEventListener('click', () => {
+          if (h.kind === 'wiki') openIEAt(ctx, 'datalink://' + h.title);
+          else window.open(h.url, '_blank', 'noopener');
+          sfx.open();
+        });
         sec.appendChild(row);
       }
       setState('found');
