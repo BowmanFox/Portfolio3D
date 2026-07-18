@@ -156,7 +156,7 @@ export class Desktop {
       { ico: '🖼️', label: `Change Wallpaper  (${WALLPAPERS[(this.wallIdx + 1) % WALLPAPERS.length].name})`,
         act: () => this.nextWallpaper() },
       { sep: true },
-      { ico: 'ℹ️', label: 'About BOWMAN.EXE', act: () => this.onAbout?.() },
+      { ico: 'ℹ️', label: 'About BowmanOS', act: () => this.onAbout?.() },
     ];
   }
 

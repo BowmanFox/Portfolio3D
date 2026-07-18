@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BOWMAN.EXE dev server — one process, both protocols.
+"""BowmanOS dev server — one process, both protocols.
 
   python serve.py [http_port] [https_port]      (defaults: 8123 and 443)
 
