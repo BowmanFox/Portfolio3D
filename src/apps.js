@@ -759,6 +759,8 @@ class CompanionView {
   async _init() {
     let r;
     try {
+      // the main showroom already worked out the fastest backend — follow it
+      if (window.BOWMAN?.showroom?.preferWebGL) throw new Error('main stage runs WebGL');
       r = new THREE.WebGPURenderer({ canvas: this.canvas, alpha: true, antialias: true });
       await r.init();
     } catch {
