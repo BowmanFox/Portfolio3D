@@ -766,7 +766,7 @@ class CompanionView {
       await r.init();
     }
     this.renderer = r;
-    r.setPixelRatio(Math.min(devicePixelRatio || 1, 1.6));
+    r.setPixelRatio(1);                    // mini stage: resolution is plenty at 1×
     r.setSize(150, 170, false);
     this.scene = new THREE.Scene();
     this.scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x777066, 1.9));
@@ -777,10 +777,16 @@ class CompanionView {
     this.camera.position.set(0, 1.28, 1.75);
     this.camera.lookAt(0, 1.05, 0);
     this.clock = new THREE.Clock();
+    // This is a SECOND render loop competing with the main showroom for the
+    // GPU, so it plays nice: capped at 30 fps, and fully asleep whenever the
+    // Search window is minimized/hidden (display:none ⇒ offsetWidth 0).
+    let acc = 0;
     r.setAnimationLoop(() => {
-      const dt = Math.min(this.clock.getDelta(), 0.1);
-      if (this.char) this.char.update(dt, this.camera.position);   // head tracks YOU
+      acc += Math.min(this.clock.getDelta(), 0.1);
+      if (acc < 1 / 30 || !this.canvas.offsetWidth) return;
+      if (this.char) this.char.update(acc, this.camera.position);   // head tracks YOU
       r.render(this.scene, this.camera);
+      acc = 0;
     });
   }
   async show(def, onLoading) {

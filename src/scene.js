@@ -7,7 +7,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Character } from './character.js';
 import { PhysicsWorld, Bouncer } from './physics.js';
 import { PROJECTS } from './projects.js';
-import { loadFBXSafe, computeModelStats, pruneMorphs } from './fbxload.js';
+import { loadFBXSafe, computeModelStats, pruneMorphs, prepareLods, applyLod, crunchTextures, restoreTextures } from './fbxload.js';
 import { sfx } from './audio.js';
 import { store } from './store.js';
 
@@ -224,6 +224,7 @@ export class Showroom {
         this.modelGroup.add(entry.object);
         this._animatedModel = null;
         proj.liveStats = entry.stats;
+        if (this._perf.level >= 2) this._applyPerf();   // arrive pre-crunched under load
         this._fitFloor();
         this.onProjectChange?.(proj, this.projIdx);          // refresh HUD/labels
       });
@@ -500,6 +501,25 @@ export class Showroom {
     const scale = [1, 0.8, 0.62, 0.5][P.level];
     this.renderer.setPixelRatio(Math.max(0.5, this._basePixelRatio * scale));
     if (this.keyLight) this.keyLight.castShadow = !this.low && P.level < 2;
+
+    // Deeper measures, applied progressively and fully undone on recovery:
+    //   L2 — on-the-fly decimation of the showcase model + all textures
+    //        crunched to 1024px
+    //   L3 — the guide decimates too, blendshapes freeze, accent lights off
+    const roots = [this.modelGroup, this.character?.root].filter(Boolean);
+    if (P.level >= 2) {                      // idempotent: helpers skip done work
+      this._crunched = true;
+      for (const r of roots) { prepareLods(r); crunchTextures(r, 1024); }
+    } else if (this._crunched) {
+      this._crunched = false;
+      for (const r of roots) restoreTextures(r);
+    }
+    applyLod(this.modelGroup, P.level >= 2);
+    if (this.character?.root) applyLod(this.character.root, P.level >= 3);
+    if (this.character) this.character.lowPower = P.level >= 3;
+    if (this.accentA) this.accentA.visible = P.level < 3;
+    if (this.accentB) this.accentB.visible = P.level < 3;
+
     const w = this.container.clientWidth, h = this.container.clientHeight;
     if (w && h) this.renderer.setSize(w, h, false);   // rebuild the drawing buffer
   }

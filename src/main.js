@@ -70,7 +70,9 @@ function openViewer() {
     const ls = showroom.project?.liveStats;
     const model = ls ? `\nMODEL: ${ls.triangles.toLocaleString('en-US')} tris · ${ls.bones} bones · ${ls.morphs} morphs` : '';
     const P = showroom._perf;
-    const perf = P?.level ? `\nPERF: auto ${[100, 80, 62, 50][P.level]}% res${P.level >= 2 ? ' · shadows off' : ''}` : '';
+    const stages = ['', '', ' · shadows off · decimated · textures crunched',
+                    ' · shadows off · decimated · textures crunched · morphs frozen'];
+    const perf = P?.level ? `\nPERF: auto ${[100, 80, 62, 50][P.level]}% res${stages[P.level]}` : '';
     hud.textContent = `RENDERER: ${showroom.backendName}\nFPS: ${fps}\nRIG: ${rig}${model}${perf}`;
   };
 
