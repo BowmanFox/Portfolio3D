@@ -299,7 +299,7 @@ class LlmBrain {
     // COLORVISION: the measured scene readout is plain TEXT, so it grounds
     // ANY model on visually-phrased questions — vision capability only
     // decides whether an actual screenshot rides along as well.
-    const visualQ = /look|colou?r|\bsee\b|describe|visual|shape|appear|design|wear|texture|style|cute|pretty|show me|screen|scene|stage|pedestal|room|model|character|\bears?\b|\btails?\b|\bpaws?\b|\bhead\b|\beyes?\b|\bfur\b|\bcoat\b|mask|marking|spot|stripe|feature|doing|happening|pose|standing|moving/i.test(query);
+    const visualQ = /look|colou?r|\bsee\b|describe|visual|shape|appear|design|wear|texture|style|cute|pretty|show me|screen|scene|stage|pedestal|room|model|character|\bears?\b|\btails?\b|\bpaws?\b|\bhead\b|\beyes?\b|\bfur\b|\bcoat\b|mask|marking|spot|stripe|feature|doing|happening|pose|standing|moving|\bnear\b|\bfar\b|distance|depth|behind|front|holding|\bparts?\b|\bmesh|made of/i.test(query);
     const sceneNote = visualQ ? (extras.sceneNote || '') : '';
     let userMsg = { role: 'user', content: query };
     if (visualQ && this.visionCapable && extras.getSnapshot) {
