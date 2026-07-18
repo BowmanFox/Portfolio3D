@@ -92,7 +92,7 @@ const FEATURE_KINDS = [
   [/rotor|propeller|engine|thruster|wheel|tread|antenna|sensor|lens|camera|chassis|panel/i, 'mechanical part'],
   [/body|torso|base\b|main/i, 'main body'],
 ];
-function classifyMesh(name, anchor) {
+function classifyMesh(name, anchor, rel) {
   for (const [re, kind] of FEATURE_KINDS) if (re.test(name || '')) return kind;
   const near = {
     Head: 'sits on/around the head — probably hair, an ear or headwear',
@@ -105,7 +105,10 @@ function classifyMesh(name, anchor) {
     RightFoot: 'sits at the feet — probably footwear',
     Tail: 'sits on the tail',
   }[anchor];
-  return near ? `unlisted; ${near}` : 'unlisted part';
+  if (near) return `unlisted; ${near}`;
+  // no skeleton to reference (static prop, unrigged model): explain the
+  // part by where it sits inside the model's own bounding box instead
+  return rel ? `unlisted; occupies the ${rel} of the model` : 'unlisted part';
 }
 
 function checkerTexture() {
@@ -330,30 +333,40 @@ export class Showroom {
     }
     const tmp = new THREE.Vector3();
     const found = [];
-    const scan = (root, owner) => root?.traverse?.((n) => {
-      if (!n.isMesh || !n.visible) return;
-      const box = new THREE.Box3().setFromObject(n);
-      if (box.isEmpty()) return;
-      const center = box.getCenter(new THREE.Vector3());
-      let anchor = null, best = Infinity;
-      if (owner === 'guide') {
-        for (const [k, p] of Object.entries(bonePos)) {
+    // vertical/horizontal placement inside the owner's own bounding box —
+    // the anchor of last resort for meshes with no skeleton to reference
+    const relPos = (center, box) => {
+      const fy = (center.y - box.min.y) / Math.max(1e-6, box.max.y - box.min.y);
+      const fx = (center.x - box.min.x) / Math.max(1e-6, box.max.x - box.min.x);
+      return `${fy > 0.66 ? 'upper' : fy > 0.33 ? 'middle' : 'lower'} ${fx > 0.66 ? 'right' : fx > 0.33 ? 'central' : 'left'} part`;
+    };
+    const scan = (root, owner) => {
+      if (!root) return;
+      const ownerBox = new THREE.Box3().setFromObject(root);
+      root.traverse((n) => {
+        if (!n.isMesh || !n.visible) return;
+        const box = new THREE.Box3().setFromObject(n);
+        if (box.isEmpty()) return;
+        const center = box.getCenter(new THREE.Vector3());
+        let anchor = null, best = Infinity;
+        for (const [k, p] of Object.entries(owner === 'guide' ? bonePos : {})) {
           const d = center.distanceTo(p);
           if (d < best) { best = d; anchor = k; }
         }
-      }
-      const mats = Array.isArray(n.material) ? n.material : [n.material];
-      const colors = [...new Set(mats.filter((m) => m?.color && !m.map)
-        .map((m) => nameColor(m.color.r * 255, m.color.g * 255, m.color.b * 255)))];
-      found.push({
-        name: n.name || '', owner, center,
-        size: box.getSize(tmp).length(),
-        dist: this.camera.position.distanceTo(center),
-        anchor, colors,
-        textured: mats.some((m) => m?.map?.image),
-        kind: classifyMesh(n.name, anchor),
+        const rel = ownerBox.isEmpty() ? null : relPos(center, ownerBox);
+        const mats = Array.isArray(n.material) ? n.material : [n.material];
+        const colors = [...new Set(mats.filter((m) => m?.color && !m.map)
+          .map((m) => nameColor(m.color.r * 255, m.color.g * 255, m.color.b * 255)))];
+        found.push({
+          name: n.name || '', owner, center,
+          size: box.getSize(tmp).length(),
+          dist: this.camera.position.distanceTo(center),
+          anchor, colors,
+          textured: mats.some((m) => m?.map?.image),
+          kind: classifyMesh(n.name, anchor, rel),
+        });
       });
-    });
+    };
     // scan the character ROOT, not just fbxGroup — eye/teeth/claw meshes are
     // often parented to bones, which live outside the model container
     scan(ch?.root, 'guide');
@@ -492,7 +505,9 @@ export class Showroom {
           put('tail base', sampleBone(base.bone));
           if (tip !== base) put('tail tip', sampleBone(tip.bone));
         }
-        if (spots.length >= 3) {
+        const boneMode = spots.length >= 3;
+        let zoneColors = [];
+        if (boneMode) {
           const txt = spots.map(([l, r]) =>
             `${l}=${r.name}${r.std > 0.16 ? ' (marked/patterned)' : ''}${occluded(r) ? ' (partly BEHIND the exhibit from this angle — reading may blend)' : ''}`).join(', ');
           // interpretation: what the measured layout adds up to
@@ -503,38 +518,55 @@ export class Showroom {
           if (head && chest && head.mean < chest.mean - 0.15) interp.push('counter-shading (darker above, lighter below)');
           if (spots.some(([, r]) => r.std > 0.16)) interp.push('a visibly patched/marked coat');
           features = `. GUIDE FEATURES (pixel-sampled at skeleton points): ${txt}${interp.length ? `; overall this reads as ${interp.join(', ')}` : ''}`;
-
-          // DEPTH: true world distances + who is in front where rects overlap
-          const headS = head, tailS = spots.find((s) => s[0] === 'tail tip' || s[0] === 'tail base')?.[1];
-          const overlap = exRect && gdRect &&
-            !(exRect[2] < gdRect[0] || gdRect[2] < exRect[0] || exRect[3] < gdRect[1] || gdRect[3] < exRect[1]);
-          const bits = [];
-          if (headS?.dist) bits.push(`guide head ≈${headS.dist.toFixed(1)}m from the viewer${tailS?.dist ? `, tail ≈${tailS.dist.toFixed(1)}m` : ''}`);
-          if (exDist < Infinity) bits.push(`exhibit ≈${exDist.toFixed(1)}m`);
-          if (headS?.dist && exDist < Infinity) {
-            const nearer = exDist < headS.dist ? 'the exhibit' : 'the guide';
-            bits.push(overlap
-              ? `${nearer} is nearer and partly in FRONT where they overlap on screen`
-              : `${nearer} is nearer; they do not overlap on screen`);
+        } else {
+          // NO SKELETON (static prop / unrigged import): read the silhouette
+          // in horizontal bands instead so boneless models still get features
+          const [gx0, gy0, gx1, gy1] = gdRect;
+          const bandH = Math.max(2, Math.floor((gy1 - gy0) / 3));
+          const bands = [
+            ['top', histogram([gx0, gy0, gx1, gy0 + bandH])],
+            ['middle', histogram([gx0, gy0 + bandH, gx1, gy1 - bandH])],
+            ['bottom', histogram([gx0, gy1 - bandH, gx1, gy1])],
+          ].filter(([, h]) => h?.top?.length);
+          if (bands.length) {
+            const txt = bands.map(([l, h]) => `${l}=${h.top.slice(0, 2).map((t) => t.replace(/^\d+% /, '')).join('/')}`).join(', ');
+            features = `. GUIDE ZONES (model has no skeleton to sample — read in bands over the silhouette): ${txt}`;
+            zoneColors = bands.flatMap(([, h]) => h.top.map((t) => t.replace(/^\d+% /, '')));
           }
-          if (bits.length) features += `. DEPTH (true world distances): ${bits.join('; ')}`;
+        }
 
-          // CROSS-REFERENCE: strong region colors not seen at ANY skeleton
-          // sample point → trace them to a discovered mesh, or flag them as
-          // an unlisted feature worth mentioning
-          if (guide) {
-            const known = new Set();
-            for (const [, r] of spots) String(r.name).split('/').forEach((n2) => known.add(n2));
-            const mystery = guide.top
-              .map((t) => { const m2 = t.match(/^(\d+)% (.+)$/); return m2 ? { pct: +m2[1], col: m2[2] } : null; })
-              .filter((e) => e && e.pct >= 6 && !known.has(e.col) && e.col !== 'navy')   // navy = backdrop
-              .slice(0, 2);
-            for (const e of mystery) {
-              const src = discovered.find((d) => d.owner === 'guide' && d.colors.includes(e.col));
-              features += `. UNATTRIBUTED: ~${e.pct}% ${e.col} in the guide region matches no sampled skeleton point — ${src
-                ? `cross-referencing meshes says it likely comes from ${src.name ? `'${src.name}'` : 'an unnamed mesh'} (${src.kind})`
-                : 'likely a marking, clothing or an accessory between sample points'}`;
-            }
+        // DEPTH: true world distances — head bone when rigged, otherwise the
+        // character root; who is in front where the screen rects overlap
+        const headS = spots.find((s) => s[0] === 'head')?.[1];
+        const tailS = spots.find((s) => s[0] === 'tail tip' || s[0] === 'tail base')?.[1];
+        const guideDist = headS?.dist ?? (ch.root ? this.camera.position.distanceTo(ch.root.position) : null);
+        const overlap = exRect && gdRect &&
+          !(exRect[2] < gdRect[0] || gdRect[2] < exRect[0] || exRect[3] < gdRect[1] || gdRect[3] < exRect[1]);
+        const bits = [];
+        if (guideDist) bits.push(`${headS ? 'guide head' : 'guide'} ≈${guideDist.toFixed(1)}m from the viewer${tailS?.dist ? `, tail ≈${tailS.dist.toFixed(1)}m` : ''}`);
+        if (exDist < Infinity) bits.push(`exhibit ≈${exDist.toFixed(1)}m`);
+        if (guideDist && exDist < Infinity) {
+          const nearer = exDist < guideDist ? 'the exhibit' : 'the guide';
+          bits.push(overlap
+            ? `${nearer} is nearer and partly in FRONT where they overlap on screen`
+            : `${nearer} is nearer; they do not overlap on screen`);
+        }
+        if (bits.length) features += `. DEPTH (true world distances): ${bits.join('; ')}`;
+
+        // CROSS-REFERENCE: strong region colors not seen at ANY sample point
+        // (bone or zone) → trace them to a discovered mesh, or flag them
+        if (guide && (spots.length || zoneColors.length)) {
+          const known = new Set(zoneColors);
+          for (const [, r] of spots) String(r.name).split('/').forEach((n2) => known.add(n2));
+          const mystery = guide.top
+            .map((t) => { const m2 = t.match(/^(\d+)% (.+)$/); return m2 ? { pct: +m2[1], col: m2[2] } : null; })
+            .filter((e) => e && e.pct >= 6 && !known.has(e.col) && e.col !== 'navy')   // navy = backdrop
+            .slice(0, 2);
+          for (const e of mystery) {
+            const src = discovered.find((d) => d.owner === 'guide' && d.colors.includes(e.col));
+            features += `. UNATTRIBUTED: ~${e.pct}% ${e.col} in the guide region matches no sampled point — ${src
+              ? `cross-referencing meshes says it likely comes from ${src.name ? `'${src.name}'` : 'an unnamed mesh'} (${src.kind})`
+              : 'likely a marking, clothing or an accessory between sample points'}`;
           }
         }
       }
