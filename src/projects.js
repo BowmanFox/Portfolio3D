@@ -78,7 +78,7 @@ export const PROJECTS = [
     specs: [
       '2,648 vertices',
       '5,200 tris',
-      'Model originally had bullets, with expent, non-expent, the bullet tip, but have sicne been removed to save space',
+      'Model originally had bullets, with expent, non-expent, the bullet tip, but have since been removed to save space',
       'Highly detailed',
       'Reasonably low poly for the detail it provides',
     ],
@@ -127,7 +127,7 @@ export const PROJECTS = [
     specs: [
       'Low poly',
       'Semi-detailed',
-      'Meant to fit robloxs art blocky aesthetic',
+      'Meant to fit roblox art blocky aesthetic',
       'No PBR textures',
     ],
     how: 'I started with the stock, almost gave up, then worked on the barrel. By hour two, I got the barrel done, the reciever, and was working on the pump. By hour 3, I was working on the finite detail like the grip, and stock again. And, I was done.',
