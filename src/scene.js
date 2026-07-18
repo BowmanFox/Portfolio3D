@@ -101,17 +101,34 @@ export class Showroom {
     const isMobile = window.innerWidth < 700 || /Mobi|Android/i.test(navigator.userAgent);
     this.low = quality === 'low' || (quality === 'auto' && isMobile);
 
-    let renderer;
+    let renderer, softGPU = false;
     try {
+      // Chrome exposes navigator.gpu even when the real GPU is blocklisted
+      // and "WebGPU" runs on SwiftShader (CPU emulation). Probe the adapter
+      // first: if WebGPU would be software but WebGL has real hardware,
+      // take the WebGL path — it's dramatically faster in that situation.
+      const adapter = await navigator.gpu?.requestAdapter?.();
+      if (!adapter) throw new Error('WebGPU unavailable');
+      const info = adapter.info ?? {};
+      softGPU = adapter.isFallbackAdapter === true ||
+        /swiftshader|software|llvmpipe|basic render/i
+          .test(`${info.vendor} ${info.architecture} ${info.description}`);
+      if (softGPU && this._webglIsHardware())
+        throw new Error('software WebGPU adapter — hardware WebGL is faster');
       renderer = new THREE.WebGPURenderer({ antialias: !this.low, alpha: false });
       await renderer.init();
     } catch (err) {
-      console.warn('WebGPU init failed, forcing WebGL backend', err);
+      console.warn('using WebGL backend:', err?.message ?? err);
       renderer = new THREE.WebGPURenderer({ antialias: !this.low, forceWebGL: true });
       await renderer.init();
     }
     this.renderer = renderer;
-    this.backendName = renderer.backend?.isWebGPUBackend ? 'WEBGPU' : 'WEBGL2';
+    // Label from the backend three ACTUALLY created — never assume the try
+    // path landed on WebGPU (three silently falls back to WebGL on its own).
+    this.backendName = renderer.backend?.isWebGPUBackend
+      ? (softGPU ? 'WEBGPU (SOFTWARE)' : 'WEBGPU')
+      : this._describeWebGL(renderer);
+    this.preferWebGL = !renderer.backend?.isWebGPUBackend;   // mini stages follow suit
     this._basePixelRatio = Math.min(devicePixelRatio || 1, this.low ? 1.25 : 2);
     this._perf = { level: 0, cool: 0 };
     renderer.setPixelRatio(this._basePixelRatio);
@@ -482,6 +499,28 @@ export class Showroom {
       this.onFps?.(fps);
       this._fpsAcc = 0; this._fpsN = 0;
     }
+  }
+
+  /** True when a throwaway WebGL2 context reports a real GPU (not SwiftShader). */
+  _webglIsHardware() {
+    try {
+      const gl = document.createElement('canvas').getContext('webgl2');
+      if (!gl) return false;
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      return !!name && !/swiftshader|software|llvmpipe|basic render/i.test(name);
+    } catch { return false; }
+  }
+
+  /** Honest label for a WebGL backend, calling out software rasterizers. */
+  _describeWebGL(renderer) {
+    try {
+      const gl = renderer.backend?.gl;
+      const ext = gl?.getExtension?.('WEBGL_debug_renderer_info');
+      const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+      return /swiftshader|software|llvmpipe|basic render/i.test(name) ? 'WEBGL2 (SOFTWARE)' : 'WEBGL2';
+    } catch { return 'WEBGL2'; }
   }
 
   /**
