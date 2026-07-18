@@ -4,14 +4,84 @@
 // from the actual internet. Nothing is proxied; requests go straight from
 // the visitor's browser.
 
-/** Live web search. Returns [{ title, desc, url }]. */
-export async function webSearch(query, limit = 6) {
+// Public SearXNG instances to try, in order. Instances come and go and not
+// all allow JSON+CORS — failures just fall through the provider chain.
+const SEARX_INSTANCES = [
+  'https://searx.be',
+  'https://search.bus-hit.me',
+  'https://searx.tiekoetter.com',
+];
+
+async function searxSearch(query, limit) {
+  for (const base of SEARX_INSTANCES) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4000);
+      const res = await fetch(`${base}/search?q=${encodeURIComponent(query)}&format=json&safesearch=1`,
+        { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const d = await res.json();
+      const hits = (d.results || []).slice(0, limit).map(r => ({
+        title: r.title, desc: r.content || r.pretty_url || '', url: r.url, kind: 'web',
+      }));
+      if (hits.length) return { provider: `SearXNG (${new URL(base).hostname})`, results: hits };
+    } catch { /* next instance */ }
+  }
+  throw new Error('no SearXNG instance answered');
+}
+
+// DuckDuckGo Instant Answers — keyless, and JSONP sidesteps CORS entirely.
+function ddgSearch(query, limit) {
+  return new Promise((resolve, reject) => {
+    const cb = `__ddg_cb_${Date.now()}_${Math.floor(Math.random() * 1e5)}`;
+    const script = document.createElement('script');
+    const cleanup = () => { delete window[cb]; script.remove(); };
+    const timer = setTimeout(() => { cleanup(); reject(new Error('DuckDuckGo timeout')); }, 5000);
+    window[cb] = (d) => {
+      clearTimeout(timer); cleanup();
+      const hits = [];
+      if (d.AbstractText) hits.push({ title: d.Heading || query, desc: d.AbstractText, url: d.AbstractURL, kind: 'web' });
+      const walk = (topics) => {
+        for (const t of topics || []) {
+          if (t.Topics) { walk(t.Topics); continue; }
+          if (t.FirstURL && t.Text) hits.push({ title: t.Text.split(' - ')[0], desc: t.Text, url: t.FirstURL, kind: 'web' });
+        }
+      };
+      walk(d.RelatedTopics);
+      if (!hits.length) return reject(new Error('DuckDuckGo: no instant answers'));
+      resolve({ provider: 'DuckDuckGo', results: hits.slice(0, limit) });
+    };
+    script.src = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&callback=${cb}`;
+    script.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error('DuckDuckGo unreachable')); };
+    document.head.appendChild(script);
+  });
+}
+
+async function wikiSearch(query, limit) {
   const u = 'https://en.wikipedia.org/w/api.php?action=opensearch&format=json&origin=*' +
             `&limit=${limit}&search=${encodeURIComponent(query)}`;
   const res = await fetch(u);
-  if (!res.ok) throw new Error(`datalink ${res.status}`);
+  if (!res.ok) throw new Error(`wikipedia ${res.status}`);
   const [, titles, descs, urls] = await res.json();
-  return titles.map((t, i) => ({ title: t, desc: descs?.[i] || '', url: urls[i] }));
+  const results = titles.map((t, i) => ({ title: t, desc: descs?.[i] || 'Wikipedia article', url: urls[i], kind: 'wiki' }));
+  if (!results.length) throw new Error('wikipedia: nothing found');
+  return { provider: 'Wikipedia', results };
+}
+
+/**
+ * Live web search through a chain of free engines: SearXNG instances first,
+ * DuckDuckGo instant answers second, Wikipedia as the dependable floor.
+ * Returns { provider, results: [{ title, desc, url, kind: 'web'|'wiki' }] }.
+ */
+export async function webSearch(query, limit = 6) {
+  const providers = [searxSearch, ddgSearch, wikiSearch];
+  let lastErr = null;
+  for (const p of providers) {
+    try { return await p(query, limit); }
+    catch (err) { lastErr = err; }
+  }
+  throw lastErr ?? new Error('all datalink providers failed');
 }
 
 /** Article summary (title, extract, optional thumbnail, canonical URL). */
