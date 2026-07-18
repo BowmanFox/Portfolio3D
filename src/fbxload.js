@@ -108,6 +108,21 @@ export async function loadFBXSafe(source, { onProgress = null, onTexturesSettled
     } catch { /* exotic attribute layouts: keep the original */ }
   });
 
+  // FBXLoader can leave thousands of per-polygon material ranges on a mesh —
+  // each one a draw call. Collapse them to one range per material up front.
+  obj.traverse((n) => {
+    if (!n.isMesh) return;
+    try {
+      const g = n.geometry;
+      if (!g.index && g.groups?.length > 8) {       // sequential index unlocks regrouping
+        const seq = new Uint32Array(g.attributes.position.count);
+        for (let i = 0; i < seq.length; i++) seq[i] = i;
+        g.setIndex(new THREE.BufferAttribute(seq, 1));
+      }
+      if (g.index) regroupByMaterial(g, Array.isArray(n.material) ? n.material.length : 1);
+    } catch { /* keep the original grouping */ }
+  });
+
   // once every queued texture has settled, drop the ones that never got data
   let settled = false;
   const strip = () => {
@@ -209,10 +224,13 @@ export function pruneMorphs(root, keepPatterns = []) {
 /**
  * ON-THE-FLY DECIMATION via index clustering: vertices are snapped to a
  * spatial grid and triangles re-pointed at one representative per cell;
- * degenerate triangles vanish. Crucially this only builds a NEW INDEX —
- * every vertex attribute (positions, UVs, normals, skin weights, morph
- * deltas) is untouched and shared, so skinned + morphed meshes decimate
- * safely and the swap back to full quality is instant.
+ * degenerate triangles vanish. Only a NEW INDEX is built — every vertex
+ * attribute (positions, UVs, normals, skin weights, morph deltas) is
+ * untouched and shared, so skinned + morphed meshes decimate safely and
+ * the swap back to full quality is instant. Vertices only merge when they
+ * also share a UV neighbourhood and a dominant bone — merging across those
+ * smears textures over seams and tears limbs while animating.
+ * Returns { index, groups } (groups is null when the mesh has none).
  */
 export function buildLodIndex(geo, div = 56) {
   const pos = geo.attributes.position;
@@ -226,24 +244,78 @@ export function buildLodIndex(geo, div = 56) {
     if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
   }
   const sx = (maxX - minX) || 1e-6, sy = (maxY - minY) || 1e-6, sz = (maxZ - minZ) || 1e-6;
+  const uv = geo.attributes.uv;
+  const sk = geo.attributes.skinIndex, sw = geo.attributes.skinWeight;
   const repr = new Map();
   const remap = new Uint32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     const cx = Math.min(div - 1, ((pos.getX(i) - minX) / sx * div) | 0);
     const cy = Math.min(div - 1, ((pos.getY(i) - minY) / sy * div) | 0);
     const cz = Math.min(div - 1, ((pos.getZ(i) - minZ) / sz * div) | 0);
-    const key = (cx * div + cy) * div + cz;
+    let key = '' + ((cx * div + cy) * div + cz);
+    if (uv) key += '|' + Math.round(uv.getX(i) * 24) + ',' + Math.round(uv.getY(i) * 24);
+    if (sk && sw) {
+      let db = sk.getX(i), bw = sw.getX(i);
+      if (sw.getY(i) > bw) { bw = sw.getY(i); db = sk.getY(i); }
+      if (sw.getZ(i) > bw) { bw = sw.getZ(i); db = sk.getZ(i); }
+      if (sw.getW(i) > bw) { db = sk.getW(i); }
+      key += '|' + db;
+    }
     let r = repr.get(key);
     if (r === undefined) { r = i; repr.set(key, i); }
     remap[i] = r;
   }
+  // walk the material groups so every surviving triangle KEEPS its material,
+  // emitting one contiguous range per group for the decimated index
+  const srcGroups = geo.groups?.length ? geo.groups : null;
   const out = [];
-  for (let i = 0; i < idx.count; i += 3) {
-    const a = remap[idx.getX(i)], b = remap[idx.getX(i + 1)], c = remap[idx.getX(i + 2)];
-    if (a !== b && b !== c && a !== c) out.push(a, b, c);
+  const outGroups = [];
+  for (const g of srcGroups ?? [{ start: 0, count: idx.count, materialIndex: 0 }]) {
+    const gs = out.length;
+    const end = Math.min(g.start + g.count, idx.count);
+    for (let i = g.start; i + 2 < end; i += 3) {
+      const a = remap[idx.getX(i)], b = remap[idx.getX(i + 1)], c = remap[idx.getX(i + 2)];
+      if (a !== b && b !== c && a !== c) out.push(a, b, c);
+    }
+    if (out.length > gs) outGroups.push({ start: gs, count: out.length - gs, materialIndex: g.materialIndex ?? 0 });
   }
   if (out.length >= idx.count * 0.9) return null;   // decimation didn't help
-  return new THREE.BufferAttribute(new Uint32Array(out), 1);
+  return { index: new THREE.BufferAttribute(new Uint32Array(out), 1),
+           groups: srcGroups ? outGroups : null };
+}
+
+/**
+ * FBXLoader often emits THOUSANDS of tiny material-group ranges (one per
+ * run of same-material polygons) — and each range is a separate draw call,
+ * a huge hidden per-frame cost. Re-bucket the triangles by material so the
+ * mesh renders in one draw call per material. Triangle order within a
+ * material doesn't matter for opaque/alpha-tested surfaces.
+ */
+export function regroupByMaterial(geo, matCount = 1) {
+  const idx = geo.index, groups = geo.groups;
+  if (!idx || !groups || groups.length <= Math.max(1, matCount)) return false;
+  const buckets = new Map();
+  for (const g of groups) {
+    const mi = g.materialIndex ?? 0;
+    let b = buckets.get(mi);
+    if (!b) buckets.set(mi, b = []);
+    const end = Math.min(g.start + g.count, idx.count);
+    for (let i = g.start; i < end; i++) b.push(idx.getX(i));
+  }
+  let total = 0;
+  for (const b of buckets.values()) total += b.length;
+  const out = new Uint32Array(total);
+  const before = groups.length;
+  geo.clearGroups();
+  let off = 0;
+  for (const [mi, b] of [...buckets.entries()].sort((a, z) => a[0] - z[0])) {
+    out.set(b, off);
+    geo.addGroup(off, b.length, mi);
+    off += b.length;
+  }
+  geo.setIndex(new THREE.BufferAttribute(out, 1));
+  console.info(`regrouped mesh: ${before.toLocaleString()} material ranges → ${geo.groups.length} draw calls`);
+  return true;
 }
 
 /** Lazily prepare LOD indices for every big mesh under a root. */
@@ -253,21 +325,31 @@ export function prepareLods(root, minTris = 12000) {
     n.userData._lodTried = true;
     const g = n.geometry;
     if (!g.index || g.index.count / 3 < minTris) return;
+    regroupByMaterial(g, Array.isArray(n.material) ? n.material.length : 1);
     const lod = buildLodIndex(g);
     if (lod) {
       n.userData.fullIndex = g.index;
-      n.userData.lodIndex = lod;
+      n.userData.fullGroups = g.groups?.length ? g.groups.map((x) => ({ ...x })) : null;
+      n.userData.lodIndex = lod.index;
+      n.userData.lodGroups = lod.groups;
     }
   });
 }
 
-/** Swap prepared LOD indices in (true) or out (false). */
+/** Swap prepared LOD indices (and their material groups) in or out. */
 export function applyLod(root, on) {
   let swapped = 0;
   root?.traverse?.((n) => {
     if (!n.isMesh || !n.userData.lodIndex) return;
     const want = on ? n.userData.lodIndex : n.userData.fullIndex;
-    if (n.geometry.index !== want) { n.geometry.setIndex(want); swapped++; }
+    if (n.geometry.index === want) return;
+    n.geometry.setIndex(want);
+    const wantGroups = on ? n.userData.lodGroups : n.userData.fullGroups;
+    if (wantGroups) {
+      n.geometry.clearGroups();
+      for (const g of wantGroups) n.geometry.addGroup(g.start, g.count, g.materialIndex);
+    }
+    swapped++;
   });
   return swapped;
 }
