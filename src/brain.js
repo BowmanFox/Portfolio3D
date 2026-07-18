@@ -231,31 +231,66 @@ class LlmBrain {
 
   async load(onProgress) {
     const webllm = await import(/* webpackIgnore: true */ WEBLLM_URL);
-    const opts = {
+    const baseOpts = {
       initProgressCallback: (p) => onProgress?.(p.progress ?? 0, p.text ?? ''),
     };
-    // some embeds lack the Cache API — fall back to IndexedDB so the model
-    // still persists between visits instead of redownloading gigabytes
-    if (!('caches' in window)) {
-      opts.appConfig = { ...webllm.prebuiltAppConfig, useIndexedDBCache: true };
+
+    // Storage preflight: multi-GB weights failing to fit surface later as a
+    // cryptic "Cache.add" error mid-download. Catch the obvious case early
+    // with a human-readable message instead.
+    const entry = webllm.prebuiltAppConfig?.model_list?.find((m) => m.model_id === MODEL_ID);
+    const needBytes = (entry?.vram_required_MB ?? 0) * 0.6 * 1024 * 1024;   // weights ≈ 60% of VRAM figure
+    if (needBytes && navigator.storage?.estimate) {
+      let est = null;
+      try { est = await navigator.storage.estimate(); } catch { /* unsupported */ }
+      const free = est?.quota ? est.quota - est.usage : 0;
+      if (est?.quota && free < needBytes) {
+        throw new Error(`Not enough browser storage for ${MODEL_ID}: needs roughly ${(needBytes / 1e9).toFixed(1)} GB, about ${(free / 1e9).toFixed(1)} GB available. Free up disk space or clear this site's stored data, then try again.`);
+      }
     }
+
     // Many model configs (gemma, phi families) ship BOTH context_window_size
     // and sliding_window_size, and the runtime refuses to start: "Only one of
     // context_window_size and sliding_window_size can be specified". Retry
-    // the load with each of them disabled in turn — whatever the model, one
-    // of these three attempts is valid. (Weights are cached, so retries skip
-    // the download.)
-    const attempts = [undefined, { sliding_window_size: -1 }, { context_window_size: -1 }];
+    // the load with each disabled in turn (weights are cached, so window-size
+    // retries skip the download).
+    const windowAttempts = [undefined, { sliding_window_size: -1 }, { context_window_size: -1 }];
+    // Storage strategies: Cache API first; if it fails (quota, or stale
+    // half-downloaded shards from an earlier model wedging Cache.add), wipe
+    // the webllm caches and retry on the separate IndexedDB storage pool.
+    const idb = { appConfig: { ...webllm.prebuiltAppConfig, useIndexedDBCache: true } };
+    const storageAttempts = ('caches' in window) ? [{}, idb] : [idb];
+
     let lastErr = null;
-    for (const chatOpts of attempts) {
-      try {
-        this.engine = await webllm.CreateMLCEngine(MODEL_ID, opts, chatOpts);
-        if (chatOpts) console.info('LLM loaded with window-size override:', chatOpts);
-        return;
-      } catch (err) {
-        lastErr = err;
-        console.warn('LLM load attempt failed', chatOpts ?? '(model defaults)', String(err?.message ?? err).slice(0, 160));
+    for (let s = 0; s < storageAttempts.length; s++) {
+      for (const chatOpts of windowAttempts) {
+        try {
+          this.engine = await webllm.CreateMLCEngine(MODEL_ID, { ...baseOpts, ...storageAttempts[s] }, chatOpts);
+          if (chatOpts) console.info('LLM loaded with window-size override:', chatOpts);
+          return;
+        } catch (err) {
+          lastErr = err;
+          const msg = String(err?.message ?? err);
+          console.warn('LLM load attempt failed',
+                       { storage: storageAttempts[s] === idb ? 'indexeddb' : 'cache-api', chatOpts },
+                       msg.slice(0, 160));
+          // only window-size complaints benefit from cycling chatOpts;
+          // anything else (cache/network) moves on to the next storage pool
+          if (!/window_size/i.test(msg)) break;
+        }
       }
+      if (s < storageAttempts.length - 1) {
+        try {
+          const keys = await caches.keys();
+          const stale = keys.filter((k) => /webllm/i.test(k));
+          await Promise.all(stale.map((k) => caches.delete(k)));
+          if (stale.length) console.info('cleared webllm caches:', stale.join(', '), '— retrying via IndexedDB');
+        } catch { /* no Cache API after all */ }
+      }
+    }
+    const finalMsg = String(lastErr?.message ?? lastErr);
+    if (/cache/i.test(finalMsg)) {
+      throw new Error(`Model download could not be written to browser storage (${finalMsg.slice(0, 120)}). This usually means the storage quota is full — free up disk space or clear this site's stored data, then retry.`);
     }
     throw lastErr;
   }
