@@ -1,8 +1,8 @@
-// ============ BOWMAN.EXE site configuration ============
+// ============ BowmanOS site configuration ============
 // Everything a portfolio owner usually wants to tweak lives here.
 export const CONFIG = {
   brandName: 'BOWMAN Megatrends',
-  appName: 'BOWMANPORTFOLIO.EXE',
+  appName: 'BowmanOS',
   guideName: 'Bowman',
 
   // Preset guide character: URL to an .fbx rig. Leave '' to use the built-in

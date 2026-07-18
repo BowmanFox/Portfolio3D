@@ -1,4 +1,4 @@
-# BOWMAN.EXE
+# BowmanOS
 
 A **Windows 95**-flavored **WebGPU portfolio operating system** from
 BOWMAN MEGATRENDS, INC. — built as a single static page with no build step,
@@ -98,7 +98,7 @@ not file://.
         style="width:100%;height:100vh;border:0"
         allow="autoplay; fullscreen"
         loading="lazy"
-        title="BOWMAN.EXE portfolio"></iframe>
+        title="BowmanOS portfolio"></iframe>
 ```
 
 Tips:

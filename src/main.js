@@ -1,4 +1,4 @@
-// BOWMAN.EXE — entry point. Boots the BIOS, raises the desktop, and wires
+// BowmanOS — entry point. Boots the BIOS, raises the desktop, and wires
 // every subsystem together: window manager, 3D showroom, character brain,
 // audio, shortcuts.
 import { CONFIG } from './config.js';
