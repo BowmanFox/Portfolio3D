@@ -11,7 +11,11 @@ import { loadFBXSafe, computeModelStats, pruneMorphs } from './fbxload.js';
 import { sfx } from './audio.js';
 import { store } from './store.js';
 
-/** Extended color naming: r,g,b (0-255) → a human color word. */
+/**
+ * Fine-grained color naming: r,g,b (0-255) → one of ~26 human color words.
+ * Ordered checks: achromatics first, then hue bands with lightness/
+ * saturation carve-outs for the earthy and pastel names people actually use.
+ */
 function nameColor(r, g, b) {
   const mx = Math.max(r, g, b) / 255, mn = Math.min(r, g, b) / 255;
   const l = (mx + mn) / 2;
@@ -25,23 +29,47 @@ function nameColor(r, g, b) {
     else h = (R - G) / d + 4;
     h = (h * 60 + 360) % 360;
   }
+  // achromatics & near-achromatics
   if (l > 0.93) return 'white';
-  if (l < 0.08) return 'black';
-  if (s < 0.13) return l > 0.6 ? 'light gray' : 'dark gray';
-  if (h >= 18 && h < 48) {
-    if (l < 0.35) return 'brown';
-    if (l < 0.62 && s < 0.6) return 'tan';
+  if (l < 0.07) return 'black';
+  if (s < 0.14) {
+    if (l > 0.82) return 'off-white';
+    if (l > 0.62) return 'silver';
+    if (l > 0.38) return 'gray';
+    if (l > 0.16) return 'dark gray';
+    return 'charcoal';
+  }
+  // warm earth tones get priority carve-outs
+  if (h >= 15 && h < 50) {
+    if (l > 0.84 && s < 0.6) return 'cream';
+    if (l > 0.7) return 'peach';
+    if (l < 0.24) return 'dark brown';
+    if (l < 0.38) return 'brown';
+    if (s > 0.55 && l < 0.52 && h < 32) return 'rust';
+    if (s > 0.55 && h >= 42) return 'gold';
+    if (s < 0.55) return l > 0.55 ? 'beige' : 'tan';
     return 'orange';
   }
-  if (h < 15 || h >= 345) return l > 0.72 ? 'pink' : 'red';
-  if (h < 68) return l < 0.42 ? 'olive' : 'yellow';
-  if (h < 95) return l < 0.4 ? 'olive' : 'lime green';
-  if (h < 160) return 'green';
-  if (h < 190) return 'teal';
-  if (h < 210) return l > 0.6 ? 'sky blue' : 'cyan';
-  if (h < 258) return l > 0.68 ? 'sky blue' : 'blue';
-  if (h < 295) return 'purple';
-  return l > 0.7 ? 'pink' : 'magenta';
+  if (h < 12 || h >= 348) {
+    if (l < 0.26) return 'maroon';
+    return l > 0.72 ? 'pink' : 'red';
+  }
+  if (h < 15 || (h >= 335 && h < 348)) return l > 0.6 ? 'pink' : 'crimson';
+  if (h < 66) return l < 0.4 ? 'olive' : 'yellow';
+  if (h < 96) return l < 0.38 ? 'olive' : 'lime green';
+  if (h < 165) {
+    if (l > 0.78) return 'mint';
+    if (l < 0.26) return 'forest green';
+    return 'green';
+  }
+  if (h < 196) return l > 0.58 ? 'turquoise' : 'teal';
+  if (h < 212) return l > 0.6 ? 'sky blue' : 'cyan';
+  if (h < 260) {
+    if (l < 0.24) return 'navy';
+    return l > 0.7 ? 'sky blue' : 'blue';
+  }
+  if (h < 298) return l > 0.74 ? 'lavender' : 'purple';
+  return l > 0.68 ? 'pink' : 'magenta';
 }
 
 function checkerTexture() {
@@ -208,33 +236,84 @@ export class Showroom {
     this.onProjectChange?.(proj, this.projIdx);
   }
 
+  /** Project an object's bounding box into pixel space of a W×H sample. */
+  _screenRect(object, W, H) {
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return null;
+    let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < 8; i++) {
+      v.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z);
+      v.project(this.camera);
+      const sx = (v.x + 1) / 2, sy = (1 - v.y) / 2;
+      x0 = Math.min(x0, sx); y0 = Math.min(y0, sy);
+      x1 = Math.max(x1, sx); y1 = Math.max(y1, sy);
+    }
+    const rx0 = Math.max(0, Math.floor(x0 * W)), ry0 = Math.max(0, Math.floor(y0 * H));
+    const rx1 = Math.min(W, Math.ceil(x1 * W)), ry1 = Math.min(H, Math.ceil(y1 * H));
+    if (rx1 - rx0 < 2 || ry1 - ry0 < 2) return null;    // off-screen or sliver
+    return [rx0, ry0, rx1, ry1];
+  }
+
   /**
-   * COLORVISION: sample the actually-rendered frame and histogram it into
-   * named colors. Unlike guessing from material tints, this sees textures,
-   * lighting and everything else a visitor sees. Returns e.g.
-   * "34% sky blue, 22% white, 15% dark gray, 9% tan".
+   * COLORVISION, advanced: renders once, reads the frame back, and analyzes
+   * it REGIONALLY — the exhibit and the guide are located by projecting
+   * their bounding boxes to screen space, so each gets its own histogram in
+   * a ~26-name palette, plus scene brightness/contrast and a pattern
+   * complexity verdict. This sees exactly what the visitor sees: textures,
+   * lighting, everything.
    */
   analyzeColors() {
     try {
+      const W = 128, H = 96;
       this.renderer.render(this.scene, this.camera);
-      const src = this.renderer.domElement;
       const c = document.createElement('canvas');
-      c.width = 64; c.height = 48;
+      c.width = W; c.height = H;
       const g = c.getContext('2d', { willReadFrequently: true });
-      g.drawImage(src, 0, 0, 64, 48);
-      const px = g.getImageData(0, 0, 64, 48).data;
-      const counts = new Map();
-      for (let i = 0; i < px.length; i += 4) {
-        const name = nameColor(px[i], px[i + 1], px[i + 2]);
-        counts.set(name, (counts.get(name) || 0) + 1);
-      }
-      const total = px.length / 4;
-      return [...counts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .filter(([, n]) => n / total > 0.03)
-        .map(([name, n]) => `${Math.round(n / total * 100)}% ${name}`)
-        .join(', ');
+      g.drawImage(this.renderer.domElement, 0, 0, W, H);
+      const px = g.getImageData(0, 0, W, H).data;
+
+      const histogram = (rect) => {
+        const [rx0, ry0, rx1, ry1] = rect;
+        const counts = new Map();
+        let n = 0, lumaSum = 0, lumaSq = 0;
+        for (let y = ry0; y < ry1; y++) {
+          for (let x = rx0; x < rx1; x++) {
+            const i = (y * W + x) * 4;
+            const name = nameColor(px[i], px[i + 1], px[i + 2]);
+            counts.set(name, (counts.get(name) || 0) + 1);
+            const luma = (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]) / 255;
+            lumaSum += luma; lumaSq += luma * luma; n++;
+          }
+        }
+        const mean = lumaSum / n;
+        const std = Math.sqrt(Math.max(0, lumaSq / n - mean * mean));
+        const top = [...counts.entries()].sort((a, b) => b[1] - a[1])
+          .filter(([, k]) => k / n > 0.04).slice(0, 5)
+          .map(([name, k]) => `${Math.round(k / n * 100)}% ${name}`);
+        const distinct = [...counts.values()].filter(k => k / n > 0.06).length;
+        return { top, mean, std, distinct };
+      };
+
+      const overall = histogram([0, 0, W, H]);
+      // degenerate readback (hidden tab, first frame, context loss) comes
+      // back all-black — better to say nothing than to hallucinate darkness
+      if (overall.mean < 0.02 && overall.std < 0.02) return '';
+      const exRect = this._screenRect(this.modelGroup, W, H);
+      const guideRoot = this.character?.usingFBX ? this.character.fbxGroup : this.character?.proceduralGroup;
+      const gdRect = guideRoot && this.character ? this._screenRect(this.character.root, W, H) : null;
+      const exhibit = exRect ? histogram(exRect) : null;
+      const guide = gdRect ? histogram(gdRect) : null;
+
+      const brightness = overall.mean > 0.62 ? 'bright' : overall.mean > 0.38 ? 'balanced' : overall.mean > 0.18 ? 'dim' : 'dark';
+      const contrast = overall.std > 0.26 ? 'high-contrast' : overall.std > 0.13 ? 'moderate-contrast' : 'soft/flat';
+      const pattern = (hst) => !hst ? '' : hst.distinct >= 4 ? 'richly patterned/multicolored' : hst.distinct >= 2 ? 'two-tone' : 'uniform';
+
+      const parts = [];
+      if (exhibit) parts.push(`the exhibit reads ${exhibit.top.join(', ')} (${pattern(exhibit)})`);
+      if (guide) parts.push(`the guide character reads ${guide.top.join(', ')} (${pattern(guide)})`);
+      parts.push(`whole frame: ${overall.top.join(', ')}; lighting is ${brightness}, ${contrast}`);
+      return parts.join('. ');
     } catch { return ''; }
   }
 
@@ -263,7 +342,7 @@ export class Showroom {
       `; surface finish: ${tally(this.modelGroup) || 'unknown'}.`;
     const guide = `The guide character stands nearby (surfaces: ${tally(this.character?.usingFBX ? this.character.fbxGroup : this.character?.proceduralGroup) || 'unknown'}).`;
     const screen = this.analyzeColors();
-    return `${pedestal} ${guide}${screen ? ` Dominant colors on screen right now (measured from rendered pixels): ${screen}.` : ''}`;
+    return `${pedestal} ${guide}${screen ? ` COLORVISION (measured per-region from the rendered frame): ${screen}.` : ''}`;
   }
 
   /** Re-resolve the current showcase FBX (e.g. after textures were dropped). */
