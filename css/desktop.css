@@ -269,6 +269,13 @@ kbd {
 .s-row .s-ico { font-size: 20px; }
 
 /* XP start menu structure (skins live in the theme sheets) */
+/* CRITICAL: the hidden attribute must beat EVERY display declaration on
+   menus (.menu.start.xp says display:flex, theme sheets say display:flex on
+   .menu.start) — without this, "closing" the start menu only sets an
+   attribute the cascade ignores and it stays stuck on screen. This rule
+   lives HERE, in the always-loaded sheet, so a theme swap or a merge of the
+   theme files can never lose it again. */
+.menu[hidden], #start-menu[hidden], #ctx-menu[hidden] { display: none !important; }
 .menu.start.xp { display: flex; flex-direction: column; padding: 0; min-width: 380px; }
 .xp-banner { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-weight: bold; font-size: 15px; color: #fff; }
 .xp-avatar { font-size: 24px; background: #fff; border-radius: 6px; padding: 3px 5px; }

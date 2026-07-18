@@ -729,15 +729,15 @@ function openDisplay(ctx) {
 // through apps, projects, help topics and the live web.
 const COMPANIONS = [
   {
-    name: CONFIG.guideName, species: 'African Wild Dog', fbx: 'src/AWD.fbx',
+    name: 'Spotty', species: 'African Wild Dog', fbx: 'src/AWD.fbx',
     lines: { idle: 'The pack is ready. What are we hunting?', search: '*ears swivel, nose to the ground*', found: 'Tracked it down! *victory yip*', none: 'Trail went cold… try other words?', pet: '*whole-body happy wiggle*' },
   },
   {
-    name: 'Commander', species: 'Commander unit', fbx: 'src/FORCOMMANDER17 - Copy.fbx',
+    name: 'Bowman variant 1', species: 'Commander build', fbx: 'src/FORCOMMANDER17 - Copy.fbx',
     lines: { idle: 'Reporting for search duty.', search: 'Sweeping the sector…', found: 'Target acquired. Outstanding.', none: 'Sector clear. Nothing found.', pet: '*maintains composure… tail betrays him*' },
   },
   {
-    name: 'Weekend', species: 'Weekend model', fbx: 'src/weekend21.fbx',
+    name: 'Bowman variant 2', species: 'Weekend build', fbx: 'src/weekend21.fbx',
     lines: { idle: 'Loose plans, open mind. Whatcha need?', search: '*casually flips through everything*', found: 'Oh nice — here it is.', none: 'Nada. Vibes only today.', pet: '*appreciative slow nod*' },
   },
 ];
