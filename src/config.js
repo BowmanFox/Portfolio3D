@@ -17,10 +17,8 @@ export const CONFIG = {
   characterHeight: 1.55,          // metres the rig is normalized to
 
   // Local LLM (WebLLM model id) used when the visitor opts in.
-  // Default is a VISION model: when visitors ask what something looks like,
-  // the guide is shown a live snapshot of the 3D showroom and answers from
-  // what it actually sees (~3.3 GB download, cached after first run).
-  // Lighter text-only alternative: 'gemma3-1b-it-q4f16_1-MLC' (~0.9 GB;
-  // needs the WebLLM pin in brain.js to be ≥0.2.80).
-  llmModel: 'Phi-3.5-vision-instruct-q4f16_1-MLC',
+  // NOTE: requires the WebLLM pin in brain.js to be ≥0.2.80 (gemma3 ids
+  // don't exist in older registries).
+ // llmModel: 'gemma3-1b-it-q4f16_1-MLC',
+    llmModel: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
 };
