@@ -372,6 +372,36 @@ export class Brain {
     }
   }
 
+  /**
+   * Delete every cached model artifact (Cache API + IndexedDB pools) and
+   * drop back to the ROM brain. The cure for wedged/partial downloads and
+   * for reclaiming gigabytes after switching llmModel in config.js.
+   * @returns {Promise<number>} approximate bytes freed
+   */
+  async clearLLMCache() {
+    try { await this.llm.engine?.unload?.(); } catch { /* engine already gone */ }
+    this.llm.engine = null;
+    this.mode = 'rom';
+    const before = (await navigator.storage?.estimate?.())?.usage ?? 0;
+    if ('caches' in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => /webllm/i.test(k)).map((k) => caches.delete(k)));
+      } catch { /* Cache API refused; IndexedDB sweep below still runs */ }
+    }
+    let dbs = [];
+    try { dbs = (await indexedDB.databases?.()) ?? []; } catch { /* not enumerable (Firefox) */ }
+    const names = new Set([...dbs.map((d) => d.name), 'webllm/model', 'webllm/config', 'webllm/wasm']);
+    await Promise.all([...names]
+      .filter((n) => n && /webllm/i.test(n))
+      .map((n) => new Promise((res) => {
+        const req = indexedDB.deleteDatabase(n);
+        req.onsuccess = req.onerror = req.onblocked = () => res();
+      })));
+    const after = (await navigator.storage?.estimate?.())?.usage ?? 0;
+    return Math.max(0, before - after);
+  }
+
   /** @returns {Promise<{text, anim, projectId}>} */
   async ask(query, currentProject, extras = {}) {
     // privacy / identity intents are handled deterministically (rights like
