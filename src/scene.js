@@ -278,12 +278,16 @@ export class Showroom {
    * it REGIONALLY — the exhibit and the guide are located by projecting
    * their bounding boxes to screen space, so each gets its own histogram in
    * a ~26-name palette, plus scene brightness/contrast and a pattern
-   * complexity verdict. This sees exactly what the visitor sees: textures,
-   * lighting, everything.
+   * complexity verdict. On top of that, FEATURE VISION: the guide's own
+   * skeleton anchors pixel samples at the head, ears, chest, paws and tail,
+   * so individual body features get named colors and the coat layout gets
+   * interpreted (counter-shading, distinct head, patched markings); the
+   * exhibit is read in vertical thirds. This sees exactly what the visitor
+   * sees: textures, lighting, pose, everything.
    */
   analyzeColors() {
     try {
-      const W = 128, H = 96;
+      const W = 192, H = 144;
       this.renderer.render(this.scene, this.camera);
       const c = document.createElement('canvas');
       c.width = W; c.height = H;
@@ -327,11 +331,99 @@ export class Showroom {
       const contrast = overall.std > 0.26 ? 'high-contrast' : overall.std > 0.13 ? 'moderate-contrast' : 'soft/flat';
       const pattern = (hst) => !hst ? '' : hst.distinct >= 4 ? 'richly patterned/multicolored' : hst.distinct >= 2 ? 'two-tone' : 'uniform';
 
+      // ---- FEATURE VISION: pixel samples anchored to the guide's skeleton
+      const sample = (sx, sy, r = 1) => {
+        const x0 = Math.max(0, sx - r), x1 = Math.min(W - 1, sx + r);
+        const y0 = Math.max(0, sy - r), y1 = Math.min(H - 1, sy + r);
+        const counts = new Map();
+        let n = 0, lumaSum = 0, lumaSq = 0;
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            const i = (y * W + x) * 4;
+            const name = nameColor(px[i], px[i + 1], px[i + 2]);
+            counts.set(name, (counts.get(name) || 0) + 1);
+            const luma = (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]) / 255;
+            lumaSum += luma; lumaSq += luma * luma; n++;
+          }
+        }
+        if (!n) return null;
+        const mean = lumaSum / n;
+        return {
+          name: [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0],
+          mean,
+          std: Math.sqrt(Math.max(0, lumaSq / n - mean * mean)),
+        };
+      };
+      const v = new THREE.Vector3();
+      const sampleBone = (bone) => {
+        if (!bone) return null;
+        bone.getWorldPosition(v).project(this.camera);
+        if (v.z < -1 || v.z > 1) return null;               // outside the frustum
+        const sx = Math.round((v.x + 1) / 2 * W), sy = Math.round((1 - v.y) / 2 * H);
+        return (sx < 0 || sx >= W || sy < 0 || sy >= H) ? null : sample(sx, sy);
+      };
+
+      let features = '';
+      const ch = this.character;
+      if (gdRect && ch) {
+        const map = (ch.usingFBX ? ch.boneMapFBX : ch.boneMap) || {};
+        const spots = [];
+        const put = (label, res) => { if (res) spots.push([label, res]); };
+        put('head', sampleBone(map.Head));
+        const ears = ch.extras?.ears || [];
+        const earTips = ears.filter((e) => !ears.some((o) => o !== e && o.side === e.side && o.depth > e.depth));
+        const earRes = earTips.map((e) => sampleBone(e.bone)).filter(Boolean);
+        if (earRes.length) {
+          put('ears', { name: [...new Set(earRes.map((r) => r.name))].join('/'),
+                        mean: earRes[0].mean, std: Math.max(...earRes.map((r) => r.std)) });
+        }
+        put('chest', sampleBone(map.Chest || map.Spine));
+        put('hips', sampleBone(map.Hips));
+        const lp = sampleBone(map.LeftHand), rp = sampleBone(map.RightHand);
+        if (lp && rp && lp.name === rp.name) put('paws', lp);
+        else { put('left paw', lp); put('right paw', rp); }
+        put('feet', sampleBone(map.LeftFoot) || sampleBone(map.RightFoot));
+        const tail = ch.tailBones || [];
+        if (tail.length) {
+          const base = tail.reduce((a, b) => (a.depth < b.depth ? a : b));
+          const tip = tail.reduce((a, b) => (a.depth > b.depth ? a : b));
+          put('tail base', sampleBone(base.bone));
+          if (tip !== base) put('tail tip', sampleBone(tip.bone));
+        }
+        if (spots.length >= 3) {
+          const txt = spots.map(([l, r]) => `${l}=${r.name}${r.std > 0.16 ? ' (marked/patterned)' : ''}`).join(', ');
+          // interpretation: what the measured layout adds up to
+          const head = spots.find((s) => s[0] === 'head')?.[1];
+          const chest = spots.find((s) => s[0] === 'chest')?.[1];
+          const interp = [];
+          if (head && chest && head.name !== chest.name) interp.push(`a distinct ${head.name} head over a ${chest.name} chest`);
+          if (head && chest && head.mean < chest.mean - 0.15) interp.push('counter-shading (darker above, lighter below)');
+          if (spots.some(([, r]) => r.std > 0.16)) interp.push('a visibly patched/marked coat');
+          features = `. GUIDE FEATURES (pixel-sampled at skeleton points): ${txt}${interp.length ? `; overall this reads as ${interp.join(', ')}` : ''}`;
+        }
+      }
+
+      // exhibit read in vertical thirds — cheap structure/silhouette sense
+      let exFeat = '';
+      if (exRect) {
+        const [x0, y0, x1, y1] = exRect;
+        const third = Math.max(2, Math.floor((y1 - y0) / 3));
+        const one = (hst) => hst?.top[0]?.replace(/^\d+% /, '') ?? null;
+        const t = one(histogram([x0, y0, x1, y0 + third]));
+        const m = one(histogram([x0, y0 + third, x1, y1 - third]));
+        const b = one(histogram([x0, y1 - third, x1, y1]));
+        if (t && m && b) {
+          exFeat = (t === m && m === b)
+            ? `. EXHIBIT LAYOUT: uniformly ${t} top to bottom`
+            : `. EXHIBIT LAYOUT: top third mostly ${t}, middle ${m}, base ${b}`;
+        }
+      }
+
       const parts = [];
       if (exhibit) parts.push(`the exhibit reads ${exhibit.top.join(', ')} (${pattern(exhibit)})`);
       if (guide) parts.push(`the guide character reads ${guide.top.join(', ')} (${pattern(guide)})`);
       parts.push(`whole frame: ${overall.top.join(', ')}; lighting is ${brightness}, ${contrast}`);
-      return parts.join('. ');
+      return parts.join('. ') + features + exFeat;
     } catch { return ''; }
   }
 
@@ -359,8 +451,31 @@ export class Showroom {
       (s ? ` (~${s.triangles.toLocaleString('en-US')} triangles, ${s.meshes} mesh${s.meshes === 1 ? '' : 'es'})` : '') +
       `; surface finish: ${tally(this.modelGroup) || 'unknown'}.`;
     const guide = `The guide character stands nearby (surfaces: ${tally(this.character?.usingFBX ? this.character.fbxGroup : this.character?.proceduralGroup) || 'unknown'}).`;
+
+    // what is HAPPENING right now — pose, motion, physics, viewpoint
+    const ch = this.character;
+    const action = [];
+    if (ch) {
+      const state = ch.animator?.state;
+      const stateWord = { dance: 'dancing', wave: 'waving', think: 'pondering', bow: 'bowing',
+                          excited: 'bouncing excitedly', walk: 'walking', headshake: 'shaking their head',
+                          nod: 'nodding', shrug: 'shrugging', facepalm: 'facepalming' }[state];
+      if (ch.talking) action.push('the guide is mid-conversation, mouth moving');
+      else if (this.wander?.target || state === 'walk') action.push('the guide is strolling around the showroom');
+      else if (stateWord) action.push(`the guide is ${stateWord}`);
+      else action.push('the guide stands at ease, idling');
+    }
+    if (this.bouncer) {
+      action.push(this.bouncer.held ? 'the visitor is dragging the exhibit around'
+        : this.bouncer.dormant ? 'the exhibit hovers over its pedestal, slowly turning'
+        : 'the exhibit is tumbling mid-air (visitor tossed it)');
+    }
+    const camD = ch?.root ? this.camera.position.distanceTo(ch.root.position) : 0;
+    if (camD) action.push(`viewed from ${camD < 2.2 ? 'up close' : camD < 4.5 ? 'a medium distance' : 'far back'}`);
+
     const screen = this.analyzeColors();
-    return `${pedestal} ${guide}${screen ? ` COLORVISION (measured per-region from the rendered frame): ${screen}.` : ''}`;
+    return `${pedestal} ${guide} LIVE ACTION: ${action.join('; ')}.` +
+      `${screen ? ` COLORVISION (measured per-region from the rendered frame): ${screen}.` : ''}`;
   }
 
   /** Re-resolve the current showcase FBX (e.g. after textures were dropped). */

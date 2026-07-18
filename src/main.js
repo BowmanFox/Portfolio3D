@@ -303,7 +303,7 @@ function openChat() {
     if (llmBlocked === 'insecure-context') { openSecureContextHelp(); return; }
     llmBtn.hidden = true;
     prog.hidden = false;
-    label.textContent = 'Downloading model (~1 GB, cached after first run)…';
+    label.textContent = 'Downloading model (~3 GB, cached after first run)…';
     try {
       await brain.installLLM((p, t) => {
         prog.firstElementChild.style.width = Math.round(p * 100) + '%';
