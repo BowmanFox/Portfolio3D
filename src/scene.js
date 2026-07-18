@@ -555,7 +555,6 @@ export class Showroom {
     }
     applyLod(this.modelGroup, P.level >= 2);
     if (this.character?.root) applyLod(this.character.root, P.level >= 3);
-    if (this.character) this.character.lowPower = P.level >= 3;
     if (this.accentA) this.accentA.visible = P.level < 3;
     if (this.accentB) this.accentB.visible = P.level < 3;
 

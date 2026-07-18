@@ -588,25 +588,14 @@ export class Character {
       }
     }
 
-    // drive blendshapes from the same expression state as the canvas face.
-    // Under sustained heavy load the perf governor sets lowPower: influences
-    // are parked at zero so the GPU skips morph blending entirely (lip-sync
-    // pauses until the frame rate recovers).
+    // drive blendshapes from the same expression state as the canvas face
     if (this.usingFBX && this.morphs) {
-      if (this.lowPower) {
-        if (!this._morphsFrozen) {
-          this._morphsFrozen = true;
-          for (const key of Object.keys(this.morphs)) this._setMorph(key, 0);
-        }
-      } else {
-        this._morphsFrozen = false;
-        const happy = this.face.expression === 'happy' ? 0.9 : 0;
-        this._smile = (this._smile ?? 0) + (happy - (this._smile ?? 0)) * Math.min(1, dt * 6);
-        this._setMorph('aa', Math.min(1, this.face.mouth));
-        this._setMorph('oh', Math.max(0, this.face.mouth - 0.55) * 0.8);
-        this._setMorph('blink', Math.min(1, this.face.blink * 1.15));
-        this._setMorph('smile', this._smile);
-      }
+      const happy = this.face.expression === 'happy' ? 0.9 : 0;
+      this._smile = (this._smile ?? 0) + (happy - (this._smile ?? 0)) * Math.min(1, dt * 6);
+      this._setMorph('aa', Math.min(1, this.face.mouth));
+      this._setMorph('oh', Math.max(0, this.face.mouth - 0.55) * 0.8);
+      this._setMorph('blink', Math.min(1, this.face.blink * 1.15));
+      this._setMorph('smile', this._smile);
     }
 
 

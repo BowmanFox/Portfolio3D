@@ -71,7 +71,7 @@ function openViewer() {
     const model = ls ? `\nMODEL: ${ls.triangles.toLocaleString('en-US')} tris · ${ls.bones} bones · ${ls.morphs} morphs` : '';
     const P = showroom._perf;
     const stages = ['', '', ' · shadows off · decimated · textures crunched',
-                    ' · shadows off · decimated · textures crunched · morphs frozen'];
+                    ' · shadows off · decimated · textures crunched · lights dimmed'];
     const perf = P?.level ? `\nPERF: auto ${[100, 80, 62, 50][P.level]}% res${stages[P.level]}` : '';
     hud.textContent = `RENDERER: ${showroom.backendName}\nFPS: ${fps}\nRIG: ${rig}${model}${perf}`;
   };
